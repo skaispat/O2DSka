@@ -1,85 +1,228 @@
+
 import React, { useState, useEffect } from 'react';
 import { Filter, Search, Clock, CheckCircle } from 'lucide-react';
 import useAuthStore from '../store/authStore';
-import useDataStore from '../store/dataStore';
 import toast from 'react-hot-toast';
 
 const GetOut = () => {
   const { user } = useAuthStore();
-  const { getFilteredData, updateGetOut } = useDataStore();
   const [activeTab, setActiveTab] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterParty, setFilterParty] = useState('all');
-  const [selectedItems, setSelectedItems] = useState({});
-  const [getOutStatus, setGetOutStatus] = useState({});
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
+  const [pendingData, setPendingData] = useState([]);
+  const [historyData, setHistoryData] = useState([]);
+  const [uniqueParties, setUniqueParties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const invoiceData = getFilteredData('invoiceData', user);
-  const getOutData = getFilteredData('getOutData', user);
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Adding timestamp to URL to prevent caching
+      const timestamp = new Date().getTime();
+      const response = await fetch(
+        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=INVOICE-DELIVERY&timestamp=${timestamp}`
+      );
+      const json = await response.json();
 
-  // Initialize get out data from completed invoice data
-  useEffect(() => {
-    const completedInvoiceData = invoiceData.filter(item => item.invoiceCompleted);
-    completedInvoiceData.forEach(invoiceItem => {
-      const existsInGetOut = getOutData.find(getOutItem => getOutItem.id === invoiceItem.id);
-      if (!existsInGetOut) {
-        // Add to get out data
-        useDataStore.getState().getOutData.push({
-          ...invoiceItem,
-          getOutCompleted: false,
-          getOutStatus: ''
-        });
+      if (json.success && Array.isArray(json.data)) {
+        const allData = json.data.slice(6).map((row, index) => ({
+          id: index + 1,
+          serialNumber: row[1],    // Column A
+          partyName: row[2],       // Column C
+          erpDoNo: row[3],         // Column D
+          transporterName: row[4],  // Column E
+          lrNumber: row[5],         // Column F
+          vehicleNumber: row[6],    // Column G
+          deliveryTerm: row[7],     // Column H
+          billingDate: row[8],      // Column I
+          billNo: row[9],           // Column J
+          billStatus: row[10],      // Column K
+          cashDiscount: row[11],    // Column L
+          planned1: row[19],        // Column T - Planned1
+          actual1: row[20],         // Column U - Actual1
+          status: row[22]           // Column W - Status
+        }));
+
+        // Filter data based on conditions
+        const pending = allData.filter(item => 
+          item.planned1 && !item.actual1
+        );
+        const history = allData.filter(item => 
+          item.planned1 && item.actual1
+        );
+
+        setPendingData(pending);
+        setHistoryData(history);
+        setUniqueParties([...new Set(allData.map(item => item.partyName))]);
       }
-    });
-  }, [invoiceData]);
-
-  const pendingData = getOutData.filter(item => !item.getOutCompleted);
-  const historyData = getOutData.filter(item => item.getOutCompleted);
-
-  const handleCheckboxChange = (id) => {
-    setSelectedItems(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleStatusChange = (id, status) => {
-    setGetOutStatus(prev => ({
-      ...prev,
-      [id]: status
-    }));
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleOpenModal = (item) => {
+    setCurrentItem(item);
+    setStatus(item.status || '');
+    setIsModalOpen(true);
   };
 
-  const handleSubmitGetOut = (id) => {
-    const status = getOutStatus[id];
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setCurrentItem(null);
+    setStatus('');
+  };
+
+  const handleSubmitStatus = async () => {
     if (!status) {
-      toast.error('Please select get out status');
+      toast.error('Please select status');
       return;
     }
-    
-    updateGetOut(id, status);
-    toast.success('Get out status updated successfully!');
-    setSelectedItems(prev => ({ ...prev, [id]: false }));
-    setGetOutStatus(prev => ({ ...prev, [id]: '' }));
+
+    setIsSubmitting(true);
+    const currentDateTime = new Date().toLocaleString('en-GB', {
+      timeZone: 'Asia/Kolkata',
+    });
+
+    try {
+      // Update the Google Sheet
+      const updateResponse = await fetch(
+        'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            sheetId: '1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc',
+            sheetName: 'INVOICE-DELIVERY',
+            action: 'update',
+            rowIndex: currentItem.id + 6,
+            columnData: JSON.stringify({
+              'U': currentDateTime,  // Column U - Actual1 (autofill current date)
+              'W': status            // Column W - Status
+            })
+          })
+        }
+      );
+
+      const updateResult = await updateResponse.json();
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || 'Failed to update Google Sheet');
+      }
+
+      toast.success('Status updated successfully!');
+      fetchData();
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast.error('Failed to update status');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredPendingData = pendingData.filter(item => {
-    const matchesSearch = item.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.erpDoNo.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
   });
 
   const filteredHistoryData = historyData.filter(item => {
-    const matchesSearch = item.partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.erpDoNo.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
   });
 
-  const uniqueParties = [...new Set(getOutData.map(item => item.partyName))];
-
   return (
     <div className="space-y-6">
+      {/* Modal */}
+      {isModalOpen && currentItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="bg-indigo-600 p-4 text-white">
+              <h2 className="text-xl font-bold">Update Status</h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Serial No</label>
+                  <p className="mt-1 text-sm font-medium">{currentItem.serialNumber}</p>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</label>
+                  <p className="mt-1 text-sm font-medium">{currentItem.partyName}</p>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</label>
+                  <p className="mt-1 text-sm font-medium">{currentItem.erpDoNo}</p>
+                </div>
+
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</label>
+                  <p className="mt-1 text-sm font-medium">{currentItem.vehicleNumber}</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Status *</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="mt-1 text-sm font-medium w-full border border-gray-300 rounded px-2 py-1"
+                >
+                  <option value="">Select Status</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Complete">Complete</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+              <button
+                onClick={handleCloseModal}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitStatus}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors flex items-center justify-center"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Updating...
+                  </>
+                ) : (
+                  'Update Status'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Get Out</h1>
       </div>
@@ -98,6 +241,7 @@ const GetOut = () => {
             <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
         </div>
+
         <div className="flex items-center space-x-2">
           <Filter size={16} className="text-gray-500" />
           <select
@@ -118,22 +262,20 @@ const GetOut = () => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                activeTab === 'pending'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'pending'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               onClick={() => setActiveTab('pending')}
             >
               <Clock size={16} className="inline mr-2" />
               Pending ({filteredPendingData.length})
             </button>
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
-                activeTab === 'history'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'history'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
               onClick={() => setActiveTab('history')}
             >
               <CheckCircle size={16} className="inline mr-2" />
@@ -144,167 +286,144 @@ const GetOut = () => {
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'pending' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice No</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Term</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill No</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Discount</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredPendingData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems[item.id] || false}
-                          onChange={() => handleCheckboxChange(item.id)}
-                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <select
-                          value={getOutStatus[item.id] || ''}
-                          onChange={(e) => handleStatusChange(item.id, e.target.value)}
-                          disabled={!selectedItems[item.id]}
-                          className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100"
-                        >
-                          <option value="">Select Status</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Pending">Pending</option>
-                          <option value="Delayed">Delayed</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.invoiceNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.lrNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.deliveryTerm}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.billingDate ? new Date(item.billingDate).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.billNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          item.billStatus === 'Paid' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.billStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.cashDiscount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filteredPendingData.length === 0 && (
-                <div className="px-6 py-12 text-center">
-                  <p className="text-gray-500">No pending get out records found.</p>
-                </div>
-              )}
-              {filteredPendingData.length > 0 && (
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => {
-                      Object.keys(selectedItems).forEach(id => {
-                        if (selectedItems[id] && getOutStatus[id]) {
-                          handleSubmitGetOut(parseInt(id));
-                        }
-                      });
-                    }}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-                  >
-                    Submit Selected
-                  </button>
-                </div>
-              )}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+              <span className="text-gray-600 ml-3">Loading data...</span>
             </div>
-          )}
+          ) : (
+            <>
+              {activeTab === 'pending' && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Term</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill No</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Discount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredPendingData.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => handleOpenModal(item)}
+                              className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                            >
+                              Get Out
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.lrNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.deliveryTerm}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.billingDate ? new Date(item.billingDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.billNo}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              item.billStatus === 'Paid' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.billStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.cashDiscount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredPendingData.length === 0 && !loading && (
+                    <div className="px-6 py-12 text-center">
+                      <p className="text-gray-500">No pending get out records found.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
-          {activeTab === 'history' && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice No</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Term</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill No</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Discount</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredHistoryData.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          item.getOutStatus === 'Completed' 
-                            ? 'bg-green-100 text-green-800' 
-                            : item.getOutStatus === 'Delayed'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.getOutStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.invoiceNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.lrNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.deliveryTerm}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {item.billingDate ? new Date(item.billingDate).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.billNo}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          item.billStatus === 'Paid' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {item.billStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.cashDiscount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filteredHistoryData.length === 0 && (
-                <div className="px-6 py-12 text-center">
-                  <p className="text-gray-500">No get out history found.</p>
+              {activeTab === 'history' && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completion Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Term</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Billing Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill No</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bill Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Discount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredHistoryData.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              item.status === 'Complete' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.actual1 ? new Date(item.actual1).toLocaleString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.lrNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.deliveryTerm}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.billingDate ? new Date(item.billingDate).toLocaleDateString() : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.billNo}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              item.billStatus === 'Paid' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.billStatus}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.cashDiscount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredHistoryData.length === 0 && !loading && (
+                    <div className="px-6 py-12 text-center">
+                      <p className="text-gray-500">No historical get out records found.</p>
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
