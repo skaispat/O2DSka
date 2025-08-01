@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Search, Clock, CheckCircle } from 'lucide-react';
+import { Filter, Search, Clock, CheckCircle, RefreshCw } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -15,7 +15,7 @@ const GetLoading1st = () => {
   const [historyData, setHistoryData] = useState([]);
   const [uniqueParties, setUniqueParties] = useState([]);
   const [loading, setLoading] = useState(true);
-const [isSubmittingLoading1st, setIsSubmittingLoading1st] = useState(false);
+  const [isSubmittingLoading1st, setIsSubmittingLoading1st] = useState(false);
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -85,49 +85,49 @@ const [isSubmittingLoading1st, setIsSubmittingLoading1st] = useState(false);
     setCurrentItem(null);
   };
 
-const handleSubmitLoading1st = async (id) => {
-  setIsSubmittingLoading1st(true);
-  const currentDateTime = new Date().toLocaleString('en-GB', {
-    timeZone: 'Asia/Kolkata',
-  });
+  const handleSubmitLoading1st = async (id) => {
+    setIsSubmittingLoading1st(true);
+    const currentDateTime = new Date().toLocaleString('en-GB', {
+      timeZone: 'Asia/Kolkata',
+    });
 
-  try {
-    const response = await fetch(
-      'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          sheetId: '1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc',
-          sheetName: 'ORDER-INVOICE',
-          action: 'update',
-          rowIndex: (id + 6).toString(),
-          columnData: JSON.stringify({
-            T: currentDateTime,                             // Actual3
-            V: currentItem.loadingStatus1 || 'complete',    // Loading Status1
-            W: remarks[id] || ''                            // Remarks
+    try {
+      const response = await fetch(
+        'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            sheetId: '1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc',
+            sheetName: 'ORDER-INVOICE',
+            action: 'update',
+            rowIndex: (id + 6).toString(),
+            columnData: JSON.stringify({
+              T: currentDateTime,                             // Actual3
+              V: currentItem.loadingStatus1 || 'complete',    // Loading Status1
+              W: remarks[id] || ''                            // Remarks
+            }),
           }),
-        }),
+        }
+      );
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update Google Sheet');
       }
-    );
 
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update Google Sheet');
+      toast.success('Loading status updated successfully!');
+      fetchData();
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error updating loading status:', error);
+      toast.error('Failed to update loading status');
+    } finally {
+      setIsSubmittingLoading1st(false);
     }
-
-    toast.success('Loading status updated successfully!');
-    fetchData();
-    handleCloseModal();
-  } catch (error) {
-    console.error('Error updating loading status:', error);
-    toast.error('Failed to update loading status');
-  }finally {
-    setIsSubmittingLoading1st(false);
-  }
-};
+  };
 
 
   const filteredPendingData = pendingData.filter(item => {
@@ -135,14 +135,22 @@ const handleSubmitLoading1st = async (id) => {
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
-  });
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+;
 
   const filteredHistoryData = historyData.filter(item => {
     const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
-  });
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+
 
   return (
     <div className="space-y-6">
@@ -215,25 +223,25 @@ const handleSubmitLoading1st = async (id) => {
                 Cancel
               </button>
               <button
-  onClick={() => handleSubmitLoading1st(currentItem.id)}
-  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[120px]"
-  disabled={isSubmittingLoading1st}
->
-  {isSubmittingLoading1st ? (
-    <>
-      <svg 
-        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" 
-        xmlns="http://www.w3.org/2000/svg" 
-        fill="none" 
-        viewBox="0 0 24 24"
-      >
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Submitting...
-    </>
-  ) : 'Submit Loading'}
-</button>
+                onClick={() => handleSubmitLoading1st(currentItem.id)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[120px]"
+                disabled={isSubmittingLoading1st}
+              >
+                {isSubmittingLoading1st ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : 'Submit Loading'}
+              </button>
             </div>
           </div>
         </div>
@@ -241,6 +249,14 @@ const handleSubmitLoading1st = async (id) => {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Get Loading 1st</h1>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Filter and Search */}
@@ -367,7 +383,7 @@ const handleSubmitLoading1st = async (id) => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        
+
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -389,7 +405,7 @@ const handleSubmitLoading1st = async (id) => {
                               <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>
                             )}
                           </td>
-                          
+
                         </tr>
                       ))}
                     </tbody>

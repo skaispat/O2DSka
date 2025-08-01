@@ -1,14 +1,13 @@
-
-import React, { useState, useEffect } from 'react';
-import { Filter, Search, Clock, CheckCircle } from 'lucide-react';
-import useAuthStore from '../store/authStore';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from "react";
+import { Filter, Search, Clock, CheckCircle, RefreshCw } from "lucide-react";
+import useAuthStore from "../store/authStore";
+import toast from "react-hot-toast";
 
 const TyreWeight = () => {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('pending');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterParty, setFilterParty] = useState('all');
+  const [activeTab, setActiveTab] = useState("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterParty, setFilterParty] = useState("all");
   const [remarks, setRemarks] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
@@ -30,35 +29,33 @@ const TyreWeight = () => {
       if (json.success && Array.isArray(json.data)) {
         const allData = json.data.slice(6).map((row, index) => ({
           id: index + 1,
-          serialNumber: row[1],    // Column A
-          partyName: row[2],       // Column C
-          erpDoNo: row[3],         // Column D
+          serialNumber: row[1], // Column A
+          partyName: row[2], // Column C
+          erpDoNo: row[3], // Column D
           transporterName: row[4], // Column E
-          lrNumber: row[5],        // Column F
-          vehicleNumber: row[6],   // Column G
-          deliveryTerm: row[7],    // Column H
-          brandName: row[8],       // Column I
-          dispatchQty: row[9],     // Column J
-          planned2: row[14],       // Column O
-          actual2: row[15],        // Column P
-          remarks: row[17]        // Column R
+          lrNumber: row[5], // Column F
+          vehicleNumber: row[6], // Column G
+          deliveryTerm: row[7], // Column H
+          brandName: row[8], // Column I
+          dispatchQty: row[9], // Column J
+          planned2: row[14], // Column O
+          actual2: row[15], // Column P
+          remarks: row[17], // Column R
         }));
 
         // Filter data based on conditions
-        const pending = allData.filter(item =>
-          item.planned2 && !item.actual2
+        const pending = allData.filter(
+          (item) => item.planned2 && !item.actual2
         );
-        const history = allData.filter(item =>
-          item.planned2 && item.actual2
-        );
+        const history = allData.filter((item) => item.planned2 && item.actual2);
 
         setPendingData(pending);
         setHistoryData(history);
-        setUniqueParties([...new Set(allData.map(item => item.partyName))]);
+        setUniqueParties([...new Set(allData.map((item) => item.partyName))]);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -69,9 +66,9 @@ const TyreWeight = () => {
   }, []);
 
   const handleRemarksChange = (id, value) => {
-    setRemarks(prev => ({
+    setRemarks((prev) => ({
       ...prev,
-      [id]: value
+      [id]: value,
     }));
   };
 
@@ -85,28 +82,43 @@ const TyreWeight = () => {
     setCurrentItem(null);
   };
 
+
+  function getFormattedDateTime() {
+    const now = new Date();
+
+    const pad = (num) => num.toString().padStart(2, "0");
+
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1); // Months are 0-based
+    const year = now.getFullYear();
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  }
+
   const handleSubmitTyreWeight = async (id) => {
     setIsSubmitting(true); // Start loading
-    const currentDateTime = new Date().toLocaleString('en-GB', {
-      timeZone: 'Asia/Kolkata',
-    });
+    const currentDateTime = getFormattedDateTime();
 
     try {
       const response = await fetch(
-        'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
+        "https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            sheetId: '1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc',
-            sheetName: 'ORDER-INVOICE',
-            action: 'update',
+            sheetId: "1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc",
+            sheetName: "ORDER-INVOICE",
+            action: "update",
             rowIndex: (id + 6).toString(),
             columnData: JSON.stringify({
-              P: currentDateTime,          // Actual2 (P)
-              R: remarks[id] || ''         // Remarks (R)
+              P: `'${currentDateTime}`, // Actual2 (P)
+              R: remarks[id] || "", // Remarks (R)
             }),
           }),
         }
@@ -114,34 +126,48 @@ const TyreWeight = () => {
 
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.error || 'Failed to update Google Sheet');
+        throw new Error(result.error || "Failed to update Google Sheet");
       }
 
-      toast.success('Tyre weight recorded successfully!');
+      toast.success("Tyre weight recorded successfully!");
       fetchData();
       handleCloseModal();
     } catch (error) {
-      console.error('Error updating tyre weight:', error);
-      toast.error('Failed to update tyre weight');
+      console.error("Error updating tyre weight:", error);
+      toast.error("Failed to update tyre weight");
     } finally {
       setIsSubmitting(false); // Stop loading regardless of success/failure
     }
   };
 
+  const filteredPendingData = pendingData
+    .filter((item) => {
+      const matchesSearch =
+        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .filter((item) => {
+      if (user?.username.toLowerCase() === "admin") return true;
+      return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+    });
 
-  const filteredPendingData = pendingData.filter(item => {
-    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesParty = filterParty === 'all' || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  });
+  const filteredHistoryData = historyData
+    .filter((item) => {
+      const matchesSearch =
+        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .filter((item) => {
+      if (user?.username.toLowerCase() === "admin") return true;
+      return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+    });
 
-  const filteredHistoryData = historyData.filter(item => {
-    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesParty = filterParty === 'all' || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  });
 
   return (
     <div className="space-y-6">
@@ -156,41 +182,69 @@ const TyreWeight = () => {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Serial No</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.serialNumber}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Serial No
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.serialNumber}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.partyName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Party Name
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.partyName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.transporterName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Transporter
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.transporterName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.vehicleNumber}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vehicle Number
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.vehicleNumber}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.brandName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Brand
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.brandName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.dispatchQty}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Dispatch Qty
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.dispatchQty}
+                  </p>
                 </div>
               </div>
 
               <div className="pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Remarks
+                </label>
                 <textarea
-                  value={remarks[currentItem.id] || ''}
-                  onChange={(e) => handleRemarksChange(currentItem.id, e.target.value)}
+                  value={remarks[currentItem.id] || ""}
+                  onChange={(e) =>
+                    handleRemarksChange(currentItem.id, e.target.value)
+                  }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   rows={3}
                   placeholder="Enter any remarks..."
@@ -212,13 +266,31 @@ const TyreWeight = () => {
               >
                 {isSubmitting ? (
                   <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                     Submitting
                   </>
-                ) : 'Submit Weight'}
+                ) : (
+                  "Submit Weight"
+                )}
               </button>
             </div>
           </div>
@@ -227,6 +299,17 @@ const TyreWeight = () => {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Tyre Weight</h1>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw
+            size={16}
+            className={`mr-2 ${loading ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </button>
       </div>
 
       {/* Filter and Search */}
@@ -240,7 +323,10 @@ const TyreWeight = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search
+              size={20}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            />
           </div>
         </div>
 
@@ -252,8 +338,10 @@ const TyreWeight = () => {
             onChange={(e) => setFilterParty(e.target.value)}
           >
             <option value="all">All Parties</option>
-            {uniqueParties.map(party => (
-              <option key={party} value={party}>{party}</option>
+            {uniqueParties.map((party) => (
+              <option key={party} value={party}>
+                {party}
+              </option>
             ))}
           </select>
         </div>
@@ -264,24 +352,34 @@ const TyreWeight = () => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'pending'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              onClick={() => setActiveTab('pending')}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+                activeTab === "pending"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+              onClick={() => setActiveTab("pending")}
             >
               <Clock size={16} className="inline mr-2" />
-              Pending ({filteredPendingData.length})
+              Pending (
+              {
+                filteredPendingData.length
+              }
+              )
             </button>
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'history'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              onClick={() => setActiveTab('history')}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+                activeTab === "history"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+              onClick={() => setActiveTab("history")}
             >
               <CheckCircle size={16} className="inline mr-2" />
-              History ({filteredHistoryData.length})
+              History (
+              {
+                filteredHistoryData.length
+              }
+              )
             </button>
           </nav>
         </div>
@@ -295,86 +393,154 @@ const TyreWeight = () => {
             </div>
           ) : (
             <>
-              {activeTab === 'pending' && (
+              {activeTab === "pending" && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Serial Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Party Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ERP DO No.
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Transporter Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Vehicle Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Brand Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Dispatch Qty
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredPendingData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => handleOpenModal(item)}
-                              className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
-                            >
-                              Record Weight
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.brandName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.dispatchQty}</td>
-                        </tr>
-                      ))}
+                      {filteredPendingData
+                        .map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => handleOpenModal(item)}
+                                className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                              >
+                                Record Weight
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.serialNumber}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.partyName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.erpDoNo}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.transporterName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.vehicleNumber}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.brandName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.dispatchQty}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                   {filteredPendingData.length === 0 && !loading && (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">No pending tyre weight records found.</p>
+                      <p className="text-gray-500">
+                        No pending tyre weight records found.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {activeTab === 'history' && (
+              {activeTab === "history" && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Serial Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Weight Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Party Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ERP DO No.
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Vehicle Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Brand Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Dispatch Qty
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Remarks
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredHistoryData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.actual2 ? new Date(item.actual2).toLocaleString() : '-'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.brandName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.dispatchQty}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.remarks || '-'}</td>
-                        </tr>
-                      ))}
+                      {filteredHistoryData
+                        .map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.serialNumber}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.actual2
+                                ? new Date(item.actual2).toLocaleString()
+                                : "-"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.partyName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.erpDoNo}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.vehicleNumber}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.brandName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.dispatchQty}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.remarks || "-"}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                   {filteredHistoryData.length === 0 && !loading && (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">No historical tyre weight records found.</p>
+                      <p className="text-gray-500">
+                        No historical tyre weight records found.
+                      </p>
                     </div>
                   )}
                 </div>

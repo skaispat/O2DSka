@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Filter, Search, Clock, CheckCircle } from 'lucide-react';
+import { Plus, X, Filter, Search, Clock, CheckCircle,RefreshCw  } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -15,6 +15,8 @@ const SaudaForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [saudaData, setSaudaData] = useState([]);
   const [brandOptions, setBrandOptions] = useState([]);
+
+  console.log("user",user);
 
   const [formData, setFormData] = useState({
     dateOfSauda: '',
@@ -65,7 +67,8 @@ const SaudaForm = () => {
         const dataRows = result.data.slice(5).filter(row => row.length > 0);
 
         const transformedData = dataRows.map((row, index) => {
-          const pendingQty = row[12]?.trim() || 'Pending'; // Column M (12th index)
+          const pendingQty = row[12] ? String(row[12]).trim() : 'Pending';
+
 
           return {
             id: index + 1,
@@ -107,8 +110,40 @@ const SaudaForm = () => {
     }));
   };
 
+const handleRefresh = async () => {
+  try {
+    setIsLoading(true);
+    await fetchSaudaData();
+    toast.success('Data refreshed successfully');
+  } catch (error) {
+    console.error('Refresh error:', error);
+    toast.error('Failed to refresh data');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
+  function getFormattedDateTime() {
+    const now = new Date();
+
+    const pad = (num) => num.toString().padStart(2, "0");
+
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1); // Months are 0-based
+    const year = now.getFullYear();
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  }
+
   const postToGoogleSheet = async (data) => {
     try {
+
+      const currentDateTime = getFormattedDateTime();
       // Get last used sauda number
       const existingSaudaNumbers = saudaData
         .map((item) => item.saudaNumber)
@@ -120,7 +155,7 @@ const SaudaForm = () => {
       const saudaNumber = `SN-${String(lastNumber + 1).padStart(3, '0')}`;
       // Prepare row data according to column structure
       const rowData = [
-        new Date().toISOString(), // A: Timestamp
+        `'${currentDateTime}`, // A: Timestamp
         saudaNumber,              // B: Sauda Number
         data.dateOfSauda,         // C: Date Of Sauda
         data.partyName,           // D: Broker Name
@@ -146,6 +181,8 @@ const SaudaForm = () => {
           'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
+
+      console.log("response",response);
 
       const result = await response.json();
       if (!result.success) {
@@ -201,7 +238,13 @@ const SaudaForm = () => {
       item.brandName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBrand = filterBrand === 'all' || item.brandName === filterBrand;
     return matchesSearch && matchesBrand;
-  });
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+;
+
+  console.log("filteredData",filteredData)
 
   const uniqueBrands = [...new Set(saudaData.map(item => item.brandName).filter(Boolean))];
 
@@ -209,13 +252,24 @@ const SaudaForm = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Sauda Form</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
-        >
-          <Plus size={16} className="mr-2" />
-          New Sauda
-        </button>
+        <div className="flex items-center space-x-2">
+    <button
+      onClick={handleRefresh}
+      className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      disabled={isLoading}
+    >
+      <RefreshCw size={16} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+      Refresh
+    </button>
+    <button
+      onClick={() => setShowModal(true)}
+      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+      disabled={isLoading}
+    >
+      <Plus size={16} className="mr-2" />
+      New Sauda
+    </button>
+  </div>
       </div>
 
       {/* Filter and Search */}
@@ -259,7 +313,7 @@ const SaudaForm = () => {
               onClick={() => setActiveTab('pending')}
             >
               <Clock size={16} className="inline mr-2" />
-              Pending ({filteredPendingData.length})
+              Pending ({filteredPendingData.filter(item=> item?.partyName.toLowerCase() === user?.username.toLowerCase()).length})
             </button>
             <button
               className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'history'
@@ -269,7 +323,7 @@ const SaudaForm = () => {
               onClick={() => setActiveTab('history')}
             >
               <CheckCircle size={16} className="inline mr-2" />
-              Complete ({filteredHistoryData.length})
+              Complete ({filteredHistoryData.filter(item=> item?.partyName.toLowerCase() === user?.username.toLowerCase()).length})
             </button>
           </nav>
         </div>

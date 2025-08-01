@@ -3,7 +3,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Filter, Search, Clock, CheckCircle, Upload, X, Plus, Minus } from "lucide-react"
+import { Filter, Search, Clock, CheckCircle, Upload, X, Plus, Minus  , RefreshCw} from "lucide-react"
 import useAuthStore from "../store/authStore"
 import toast from "react-hot-toast"
 
@@ -110,6 +110,7 @@ const MakeInvoice = () => {
           saudaNo: row[53],
           brokerName: row[54],
           billStatus: row[55],
+          pdf: row[40],
         }))
 
         const pending = allData.filter(
@@ -136,7 +137,7 @@ const MakeInvoice = () => {
     try {
       // Fetch broker data from Sauda sheet
       const brokerResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Sauda&id=1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc`,
+        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Sauda&id=1blHC_0TZh9AuZMptHHB-mPfOi8TqGAvLIgxKhlQHva8`,
       )
       const brokerJson = await brokerResponse.json()
       if (brokerJson.success) {
@@ -163,7 +164,7 @@ const MakeInvoice = () => {
 
       // Fetch sizes from Main Master sheet
       const sizeResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Main Master&id=1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc`,
+        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Main Master&id=1blHC_0TZh9AuZMptHHB-mPfOi8TqGAvLIgxKhlQHva8`,
       )
       const sizeJson = await sizeResponse.json()
       if (sizeJson.success) {
@@ -177,7 +178,7 @@ const MakeInvoice = () => {
 
       // Fetch bill statuses
       const statusResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Main Master&id=1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc`,
+        `https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec?sheet=Main Master&id=1blHC_0TZh9AuZMptHHB-mPfOi8TqGAvLIgxKhlQHva8`,
       )
       const statusJson = await statusResponse.json()
       if (statusJson.success) {
@@ -189,6 +190,93 @@ const MakeInvoice = () => {
       toast.error("Failed to load dropdown data")
     }
   }
+
+  // Function to handle PDF viewing with better error handling
+  const handleViewPDF = (url, event) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    // Check if url exists and is a string
+    if (!url || typeof url !== "string") {
+      toast.error("No valid weighment copy available");
+      return;
+    }
+
+    try {
+      const viewerUrl = getDriveViewerUrl(url.trim()); // Now safe to call trim()
+      if (viewerUrl) {
+        window.open(viewerUrl, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("Invalid PDF URL format");
+      }
+    } catch (error) {
+      console.error("Error opening PDF:", error);
+      toast.error("Failed to open PDF. Please try again.");
+    }
+  };
+
+  // Fixed function to get proper Google Drive viewer URL
+  const getDriveViewerUrl = (url) => {
+    try {
+      if (!url || url.trim() === "") {
+        console.warn("Empty or null URL provided");
+        return null;
+      }
+
+      console.log("Original URL:", url);
+
+      // If it's already a proper drive viewer link, return as-is
+      if (
+        url.includes("drive.google.com/file/d/") &&
+        (url.includes("/view") || url.includes("/preview"))
+      ) {
+        console.log("Already proper drive URL:", url);
+        return url;
+      }
+
+      // Extract file ID from various Google Drive URL formats
+      let fileId = "";
+
+      // Standard share link format: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+      const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (fileIdMatch) {
+        fileId = fileIdMatch[1];
+        console.log("Extracted file ID from standard format:", fileId);
+      }
+      // Open URL format: https://drive.google.com/open?id=FILE_ID
+      else if (url.includes("open?id=")) {
+        try {
+          const urlObj = new URL(url);
+          fileId = urlObj.searchParams.get("id");
+          console.log("Extracted file ID from open format:", fileId);
+        } catch (urlError) {
+          console.error("Error parsing open URL:", urlError);
+        }
+      }
+      // Direct ID format (just the ID)
+      else if (url.match(/^[a-zA-Z0-9_-]{25,}$/)) {
+        fileId = url;
+        console.log("URL appears to be direct file ID:", fileId);
+      }
+
+      if (!fileId) {
+        console.warn("Could not extract file ID from URL:", url);
+        // Try to use the original URL as fallback
+        return url;
+      }
+
+      // Return proper viewer URL that opens in new tab
+      const viewerUrl = `https://drive.google.com/file/d/${fileId}/view`;
+      console.log("Generated viewer URL:", viewerUrl);
+      return viewerUrl;
+    } catch (e) {
+      console.error("Error parsing Drive URL:", e);
+      return url; // Fallback to original URL if parsing fails
+    }
+  };
+
 
   // Handle global broker change
   const handleGlobalBrokerChange = (broker) => {
@@ -335,6 +423,29 @@ const MakeInvoice = () => {
     }
   }
 
+  const getNextEmptyInvoiceRow = async () => {
+  const response = await fetch("https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      action: "getNextEmptyRow",
+      sheetId: "1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc",
+      sheetName: "INVOICE-DELIVERY",
+      column: "B", // Assuming Invoice No is in column B
+    }),
+  });
+
+  const result = await response.json();
+  if (result.success) {
+    return result.rowIndex;
+  } else {
+    throw new Error(result.error);
+  }
+};
+
+
   const uploadImageToDrive = async (file) => {
     try {
       const reader = new FileReader()
@@ -379,6 +490,22 @@ const MakeInvoice = () => {
       toast.error("Failed to upload image")
       return { success: false, error: "Failed to upload image" }
     }
+  }
+
+   function getFormattedDateTime() {
+    const now = new Date();
+
+    const pad = (num) => num.toString().padStart(2, "0");
+
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1); // Months are 0-based
+    const year = now.getFullYear();
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${day}/${month}/${year}`;
   }
 
   const handleSubmitInvoice = async () => {
@@ -431,9 +558,10 @@ const MakeInvoice = () => {
       for (const [index, row] of validRows.entries()) {
         // Generate unique invoice number for each row
         const invoiceNumber = `IN-${String(lastNumber + 1 + index).padStart(3, '0')}`;
+         const rowIndex = await getNextEmptyInvoiceRow();
 
         const rowData = {
-          A: new Date().toISOString(),
+          A: getFormattedDateTime(),
           B: invoiceNumber, // Unique invoice number for each row
           C: currentItem.partyName,
           D: row.saudaNo,
@@ -455,7 +583,7 @@ const MakeInvoice = () => {
         };
 
         // Calculate row index - for first row use currentItem.id + 6, for subsequent rows increment
-        const rowIndex = currentItem.id + 6 + index;
+        // const rowIndex = currentItem.id + 6 + index;
 
         const updateResponse = await fetch(
           "https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec",
@@ -479,9 +607,8 @@ const MakeInvoice = () => {
           throw new Error(updateResult.error || "Failed to update Google Sheet");
         }
       }
-
-      toast.success(`Invoice(s) submitted successfully!`);
       fetchData();
+      toast.success(`Invoice(s) submitted successfully!`);
       fetchInvoiceData();
       handleCloseModal();
     } catch (error) {
@@ -498,7 +625,11 @@ const MakeInvoice = () => {
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesParty = filterParty === "all" || item.partyName === filterParty
     return matchesSearch && matchesParty
-  })
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+
 
   const filteredHistoryData = historyData.filter((item) => {
     const matchesSearch =
@@ -506,7 +637,12 @@ const MakeInvoice = () => {
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesParty = filterParty === "all" || item.partyName === filterParty
     return matchesSearch && matchesParty
-  })
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+
+console.log("pendingData",pendingData);
 
   return (
     <div className="space-y-6">
@@ -627,20 +763,27 @@ const MakeInvoice = () => {
 
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Bill Image</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Bill Image / PDF</label>
                   <div className="flex items-center space-x-3">
                     <label className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors">
                       <Upload size={16} className="mr-2" />
-                      Upload Image
-                      <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                      Upload File
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                     </label>
+
                     {formData.billImage && (
                       <span className="text-sm text-gray-600">
-                        {formData.billImage instanceof File ? formData.billImage.name : "Image uploaded"}
+                        {formData.billImage instanceof File ? formData.billImage.name : "File uploaded"}
                       </span>
                     )}
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Broker Name <span className="text-red-500">*</span>
@@ -834,6 +977,14 @@ const MakeInvoice = () => {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Make Invoice</h1>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
@@ -935,6 +1086,7 @@ const MakeInvoice = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Gate In
                         </th>
+                        
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -957,6 +1109,7 @@ const MakeInvoice = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.brandName}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.dispatchQty}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.planned7}</td>
+                          
                         </tr>
                       ))}
                     </tbody>
@@ -999,7 +1152,7 @@ const MakeInvoice = () => {
                           Bill Status
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Bill Image
+                          View
                         </th>
                       </tr>
                     </thead>
@@ -1030,17 +1183,18 @@ const MakeInvoice = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.billImage ? (
-                              <a
-                                href={item.billImage}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-indigo-600 hover:text-indigo-800"
+                            {item.pdf ? (
+                              <button
+                                onClick={(e) =>
+                                  handleViewPDF(item.pdf, e)
+                                }
+                                className="text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer font-medium px-2 py-1 rounded transition-colors"
+                                type="button"
                               >
-                                View
-                              </a>
+                                View PDF
+                              </button>
                             ) : (
-                              "-"
+                              <span className="text-gray-400">No file</span>
                             )}
                           </td>
                         </tr>

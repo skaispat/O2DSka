@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Filter, Search, Clock, CheckCircle } from 'lucide-react';
-import useAuthStore from '../store/authStore';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from "react";
+import { Filter, Search, Clock, CheckCircle, RefreshCw } from "lucide-react";
+import useAuthStore from "../store/authStore";
+import toast from "react-hot-toast";
 
 const GetLoading2nd = () => {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('pending');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterParty, setFilterParty] = useState('all');
+  const [activeTab, setActiveTab] = useState("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterParty, setFilterParty] = useState("all");
   const [remarks, setRemarks] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
@@ -15,7 +15,7 @@ const GetLoading2nd = () => {
   const [historyData, setHistoryData] = useState([]);
   const [uniqueParties, setUniqueParties] = useState([]);
   const [loading, setLoading] = useState(true);
-const [isSubmittingLoading2nd, setIsSubmittingLoading2nd] = useState(false);
+  const [isSubmittingLoading2nd, setIsSubmittingLoading2nd] = useState(false);
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -29,36 +29,34 @@ const [isSubmittingLoading2nd, setIsSubmittingLoading2nd] = useState(false);
       if (json.success && Array.isArray(json.data)) {
         const allData = json.data.slice(6).map((row, index) => ({
           id: index + 1,
-          serialNumber: row[1],    // Column A
-          partyName: row[2],       // Column C
-          erpDoNo: row[3],         // Column D
+          serialNumber: row[1], // Column A
+          partyName: row[2], // Column C
+          erpDoNo: row[3], // Column D
           transporterName: row[4], // Column E
-          lrNumber: row[5],        // Column F
-          vehicleNumber: row[6],   // Column G
-          deliveryTerm: row[7],    // Column H
-          brandName: row[8],       // Column I
-          dispatchQty: row[9],     // Column J
-          planned4: row[22],       // Column W - Planned4
-          actual4: row[23],        // Column X - Actual4
+          lrNumber: row[5], // Column F
+          vehicleNumber: row[6], // Column G
+          deliveryTerm: row[7], // Column H
+          brandName: row[8], // Column I
+          dispatchQty: row[9], // Column J
+          planned4: row[22], // Column W - Planned4
+          actual4: row[23], // Column X - Actual4
           loadingStatus2: row[25], // Column Z - Loading Status2
-          remarks: row[17]         // Column R - Remarks
+          remarks: row[17], // Column R - Remarks
         }));
-
+        
         // Filter data based on conditions
-        const pending = allData.filter(item =>
-          item.planned4 && !item.actual4
+        const pending = allData.filter(
+          (item) => item.planned4 && !item.actual4
         );
-        const history = allData.filter(item =>
-          item.planned4 && item.actual4
-        );
+        const history = allData.filter((item) => item.planned4 && item.actual4);
 
         setPendingData(pending);
         setHistoryData(history);
-        setUniqueParties([...new Set(allData.map(item => item.partyName))]);
+        setUniqueParties([...new Set(allData.map((item) => item.partyName))]);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -69,9 +67,9 @@ const [isSubmittingLoading2nd, setIsSubmittingLoading2nd] = useState(false);
   }, []);
 
   const handleRemarksChange = (id, value) => {
-    setRemarks(prev => ({
+    setRemarks((prev) => ({
       ...prev,
-      [id]: value
+      [id]: value,
     }));
   };
 
@@ -85,64 +83,92 @@ const [isSubmittingLoading2nd, setIsSubmittingLoading2nd] = useState(false);
     setCurrentItem(null);
   };
 
-const handleSubmitLoading2nd = async (id) => {
-  setIsSubmittingLoading2nd(true);
-  const currentDateTime = new Date().toLocaleString('en-GB', {
-    timeZone: 'Asia/Kolkata',
-  });
 
-  try {
-    const response = await fetch(
-      'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          sheetId: '1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc',
-          sheetName: 'ORDER-INVOICE',
-          action: 'update',
-          rowIndex: (id + 6).toString(),
-          columnData: JSON.stringify({
-            X: currentDateTime,                           // Actual4
-            Z: currentItem.loadingStatus2 || 'complete',  // Loading Status2
-            AA: remarks[id] || ''                         // Remarks
-          }),
-        }),
-      }
-    );
+    function getFormattedDateTime() {
+    const now = new Date();
 
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to update Google Sheet');
-    }
+    const pad = (num) => num.toString().padStart(2, "0");
 
-    toast.success('Loading 2nd status updated successfully!');
-    fetchData();
-    handleCloseModal();
-  } catch (error) {
-    console.error('Error updating loading status:', error);
-    toast.error('Failed to update loading status');
-  }finally {
-    setIsSubmittingLoading2nd(false);
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1); // Months are 0-based
+    const year = now.getFullYear();
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   }
-};
 
+  const handleSubmitLoading2nd = async (id) => {
+    setIsSubmittingLoading2nd(true);
+    const currentDateTime = getFormattedDateTime();
 
-  const filteredPendingData = pendingData.filter(item => {
-    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesParty = filterParty === 'all' || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  });
+    try {
+      const response = await fetch(
+        "https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            sheetId: "1wbIPdsHBxTE7fnzgOiAxS4koFwNxzwdpgp59NRWsnoc",
+            sheetName: "ORDER-INVOICE",
+            action: "update",
+            rowIndex: (id + 6).toString(),
+            columnData: JSON.stringify({
+              X: `'${currentDateTime}`, // Actual4
+              Z: currentItem.loadingStatus2 || "complete", // Loading Status2
+              AA: remarks[id] || "", // Remarks
+            }),
+          }),
+        }
+      );
 
-  const filteredHistoryData = historyData.filter(item => {
-    const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesParty = filterParty === 'all' || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update Google Sheet");
+      }
+
+      toast.success("Loading 2nd status updated successfully!");
+      fetchData();
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error updating loading status:", error);
+      toast.error("Failed to update loading status");
+    } finally {
+      setIsSubmittingLoading2nd(false);
+    }
+  };
+
+  const filteredPendingData = pendingData
+    .filter((item) => {
+      const matchesSearch =
+        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .filter((item) => {
+      if (user?.username.toLowerCase() === "admin") return true;
+      return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+    });
+
+  const filteredHistoryData = historyData
+    .filter((item) => {
+      const matchesSearch =
+        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .filter((item) => {
+      if (user?.username.toLowerCase() === "admin") return true;
+      return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+    });
 
   return (
     <div className="space-y-6">
@@ -157,38 +183,64 @@ const handleSubmitLoading2nd = async (id) => {
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Serial No</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.serialNumber}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Serial No
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.serialNumber}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.partyName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Party Name
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.partyName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.transporterName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Transporter
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.transporterName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.vehicleNumber}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vehicle Number
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.vehicleNumber}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Brand</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.brandName}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Brand
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.brandName}
+                  </p>
                 </div>
 
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</label>
-                  <p className="mt-1 text-sm font-medium">{currentItem.dispatchQty}</p>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Dispatch Qty
+                  </label>
+                  <p className="mt-1 text-sm font-medium">
+                    {currentItem.dispatchQty}
+                  </p>
                 </div>
               </div>
 
               <div className="pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
                 <select
                   value="complete"
                   disabled
@@ -197,9 +249,6 @@ const handleSubmitLoading2nd = async (id) => {
                   <option value="complete">Complete</option>
                 </select>
               </div>
-
-
-
             </div>
 
             <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
@@ -210,25 +259,38 @@ const handleSubmitLoading2nd = async (id) => {
                 Cancel
               </button>
               <button
-  onClick={() => handleSubmitLoading2nd(currentItem.id)}
-  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[120px]"
-  disabled={isSubmittingLoading2nd}
->
-  {isSubmittingLoading2nd ? (
-    <>
-      <svg 
-        className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" 
-        xmlns="http://www.w3.org/2000/svg" 
-        fill="none" 
-        viewBox="0 0 24 24"
-      >
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Submitting...
-    </>
-  ) : 'Submit Loading'}
-</button>
+                onClick={() => handleSubmitLoading2nd(currentItem.id)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[120px]"
+                disabled={isSubmittingLoading2nd}
+              >
+                {isSubmittingLoading2nd ? (
+                  <>
+                    <svg
+                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit Loading"
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -236,6 +298,17 @@ const handleSubmitLoading2nd = async (id) => {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Get Loading 2nd</h1>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw
+            size={16}
+            className={`mr-2 ${loading ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </button>
       </div>
 
       {/* Filter and Search */}
@@ -249,7 +322,10 @@ const handleSubmitLoading2nd = async (id) => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Search
+              size={20}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            />
           </div>
         </div>
 
@@ -261,8 +337,10 @@ const handleSubmitLoading2nd = async (id) => {
             onChange={(e) => setFilterParty(e.target.value)}
           >
             <option value="all">All Parties</option>
-            {uniqueParties.map(party => (
-              <option key={party} value={party}>{party}</option>
+            {uniqueParties.map((party) => (
+              <option key={party} value={party}>
+                {party}
+              </option>
             ))}
           </select>
         </div>
@@ -273,21 +351,23 @@ const handleSubmitLoading2nd = async (id) => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'pending'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              onClick={() => setActiveTab('pending')}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+                activeTab === "pending"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+              onClick={() => setActiveTab("pending")}
             >
               <Clock size={16} className="inline mr-2" />
               Pending ({filteredPendingData.length})
             </button>
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${activeTab === 'history'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              onClick={() => setActiveTab('history')}
+              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+                activeTab === "history"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+              onClick={() => setActiveTab("history")}
             >
               <CheckCircle size={16} className="inline mr-2" />
               History ({filteredHistoryData.length})
@@ -304,19 +384,35 @@ const handleSubmitLoading2nd = async (id) => {
             </div>
           ) : (
             <>
-              {activeTab === 'pending' && (
+              {activeTab === "pending" && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transporter Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Action
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Serial Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Party Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ERP DO No.
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Transporter Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Vehicle Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Brand Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Dispatch Qty
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -330,57 +426,107 @@ const handleSubmitLoading2nd = async (id) => {
                               Record Loading
                             </button>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.transporterName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.brandName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.dispatchQty}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.serialNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.partyName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.erpDoNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.transporterName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.vehicleNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.brandName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.dispatchQty}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   {filteredPendingData.length === 0 && !loading && (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">No pending loading 2nd records found.</p>
+                      <p className="text-gray-500">
+                        No pending loading 2nd records found.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
 
-              {activeTab === 'history' && (
+              {activeTab === "history" && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Serial Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Party Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ERP DO No.</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Brand Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch Qty</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Serial Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Loading Date
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Party Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          ERP DO No.
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Vehicle Number
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Brand Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Dispatch Qty
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filteredHistoryData.map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.serialNumber}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.actual4 ? new Date(item.actual4).toLocaleString() : '-'}
+                            {item.serialNumber}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.partyName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.erpDoNo}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.vehicleNumber}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.brandName}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.dispatchQty}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.loadingStatus2 === 'complete' ? (
-                              <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Complete</span>
+                            {item.actual4
+                              ? new Date(item.actual4).toLocaleString()
+                              : "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.partyName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.erpDoNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.vehicleNumber}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.brandName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.dispatchQty}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.loadingStatus2 === "complete" ? (
+                              <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                                Complete
+                              </span>
                             ) : (
-                              <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                              <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
+                                Pending
+                              </span>
                             )}
                           </td>
                         </tr>
@@ -389,7 +535,9 @@ const handleSubmitLoading2nd = async (id) => {
                   </table>
                   {filteredHistoryData.length === 0 && !loading && (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">No historical loading 2nd records found.</p>
+                      <p className="text-gray-500">
+                        No historical loading 2nd records found.
+                      </p>
                     </div>
                   )}
                 </div>

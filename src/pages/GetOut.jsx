@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Filter, Search, Clock, CheckCircle } from 'lucide-react';
+import { Filter, Search, Clock, CheckCircle , RefreshCw } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -83,18 +83,39 @@ const GetOut = () => {
     setStatus('');
   };
 
+
+function getFormattedDateTime() {
+    const now = new Date();
+
+    const pad = (num) => num.toString().padStart(2, "0");
+
+    const day = pad(now.getDate());
+    const month = pad(now.getMonth() + 1); // Months are 0-based
+    const year = now.getFullYear();
+
+    const hours = pad(now.getHours());
+    const minutes = pad(now.getMinutes());
+    const seconds = pad(now.getSeconds());
+
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  }
+
+
   const handleSubmitStatus = async () => {
+
+    console.log("currentItem",currentItem);
+
     if (!status) {
       toast.error('Please select status');
       return;
     }
 
     setIsSubmitting(true);
-    const currentDateTime = new Date().toLocaleString('en-GB', {
-      timeZone: 'Asia/Kolkata',
-    });
+    const currentDateTime = getFormattedDateTime();
 
     try {
+      
+
       // Update the Google Sheet
       const updateResponse = await fetch(
         'https://script.google.com/macros/s/AKfycbyhWN2S6qnJm7RVQr5VpPfyKRxI8gks0xxgWh_reMVlpsWvLo0rfzvqVA34x2xkPsJm/exec',
@@ -109,7 +130,7 @@ const GetOut = () => {
             action: 'update',
             rowIndex: currentItem.id + 6,
             columnData: JSON.stringify({
-              'U': currentDateTime,  // Column U - Actual1 (autofill current date)
+              'U': `'${currentDateTime}`,  // Column U - Actual1 (autofill current date)
               'W': status            // Column W - Status
             })
           })
@@ -132,19 +153,29 @@ const GetOut = () => {
     }
   };
 
+  console.log("pendingData",pendingData);
+  console.log("historyData",historyData);
+
   const filteredPendingData = pendingData.filter(item => {
     const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
-  });
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
 
   const filteredHistoryData = historyData.filter(item => {
     const matchesSearch = item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.erpDoNo?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesParty = filterParty === 'all' || item.partyName === filterParty;
     return matchesSearch && matchesParty;
-  });
+  }).filter(item => {
+  if (user?.username.toLowerCase() === 'admin') return true;
+  return item?.partyName.toLowerCase() === user?.username.toLowerCase();
+});
+
 
   return (
     <div className="space-y-6">
@@ -225,6 +256,14 @@ const GetOut = () => {
 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">Get Out</h1>
+        <button
+          onClick={fetchData}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw size={16} className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Filter and Search */}
