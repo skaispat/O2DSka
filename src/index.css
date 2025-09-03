@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* For WebKit browsers (Chrome, Safari) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* For IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+
+
+
+
+/* styles.css ya global CSS file me add karo */
+.custom-dropdown .ant-select-item-option-selected {
+  @apply bg-blue-500 text-white !important;
+}
+
+.custom-dropdown .ant-select-item-option-active {
+  @apply bg-blue-500 text-white !important;
+}

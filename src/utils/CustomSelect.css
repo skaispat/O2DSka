@@ -1,0 +1,11 @@
+/* Blue background for selected item in dropdown */
+.custom-select-dropdown .ant-select-item-option-selected {
+  background-color: #3b82f6 !important; /* bg-blue-500 */
+  color: white !important;
+}
+
+/* Optional: Hover effect for unselected items */
+.custom-select-dropdown .ant-select-item-option-active {
+  background-color: #3b82f6 !important; /* arrow-key highlight */
+  color: white !important;
+}
