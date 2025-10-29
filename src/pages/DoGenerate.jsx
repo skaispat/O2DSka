@@ -94,7 +94,6 @@ const DoGenerate = () => {
     setSelectedTransporter("");
   };
 
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -394,7 +393,6 @@ const DoGenerate = () => {
     }
   };
 
-
   useEffect(() => {
     fetchPartyNames();
   }, []);
@@ -436,22 +434,22 @@ const DoGenerate = () => {
   const filteredBrandOptions =
     formData.brandName && formData.brandName.trim() !== ""
       ? brandOptions.filter((brand) =>
-        brand.toLowerCase().includes(formData.brandName.toLowerCase())
-      )
+          brand.toLowerCase().includes(formData.brandName.toLowerCase())
+        )
       : brandOptions;
 
   const filteredPartyOptions =
     formData.partyName && formData.partyName.trim() !== ""
       ? partyNames.filter((party) =>
-        party.toLowerCase().includes(formData.partyName.toLowerCase())
-      )
+          party.toLowerCase().includes(formData.partyName.toLowerCase())
+        )
       : partyNames;
 
   const filteredTransporterOptions =
     selectedTransporter && selectedTransporter.trim() !== ""
       ? transporterName.filter((transporter) =>
-        transporter.toLowerCase().includes(selectedTransporter.toLowerCase())
-      )
+          transporter.toLowerCase().includes(selectedTransporter.toLowerCase())
+        )
       : transporterName;
 
   const [showDealerModal, setShowDealerModal] = useState({
@@ -664,38 +662,154 @@ const DoGenerate = () => {
 
   const uniqueParties = [...new Set(doData.map((item) => item.partyName))];
 
+  // const handleSubmitVehicleNumber = async (id, orderNo) => {
+  //   try {
+  //     const vehicleNumber = editedVehicleNumbers[id];
+  //     setChangeVehicalNo(true);
+  //     const responseOrderInvoice = await fetch(
+  //       "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/x-www-form-urlencoded",
+  //         },
+  //         body: new URLSearchParams({
+  //           sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+  //           sheetName: "ORDER-INVOICE",
+  //           action: "updateVehicleByOrderNoOrderInvoice",
+  //           orderNo: orderNo,
+  //           vehicleNumber: vehicleNumber,
+  //         }),
+  //       }
+  //     );
+
+  //     const responseInvoiceDelivery = await fetch(
+  //       "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+  //       {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/x-www-form-urlencoded",
+  //         },
+  //         body: new URLSearchParams({
+  //           sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+  //           sheetName: "INVOICE-DELIVERY",
+  //           action: "updateVehicleByOrderNoInvoiceDelivery",
+  //           orderNo: orderNo,
+  //           vehicleNumber: vehicleNumber,
+  //         }),
+  //       }
+  //     );
+
+  //     const resultOrderInvoice = await responseOrderInvoice.json();
+
+  //     if (resultOrderInvoice.success) {
+  //       toast.success("Vehicle number updated successfully!");
+
+  //       setDoData((prevData) =>
+  //         prevData.map((item) =>
+  //           item.serialNumber === orderNo
+  //             ? { ...item, vehicleNumber: vehicleNumber }
+  //             : item
+  //         )
+  //       );
+
+  //       setEditingId(null);
+  //     } else {
+  //       setEditingId(null);
+  //       throw new Error(
+  //         resultOrderInvoice.error || "Failed to update vehicle number"
+  //       );
+  //     }
+
+  //     const resultInvoiceDelivery = await responseInvoiceDelivery.json();
+  //     console.log("resultInvoiceDelivery",resultInvoiceDelivery)
+
+  //     if (!resultInvoiceDelivery.success) {
+  //       throw new Error(
+  //         resultInvoiceDelivery.error ||
+  //           "Failed to update vehicle number in Invoice-Delivery"
+  //       );
+  //       setEditingId(null);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error updating vehicle number:", error);
+  //     toast.error("Failed to update vehicle number");
+  //   } finally {
+  //     setChangeVehicalNo(false);
+  //   }
+  // };
+
   const handleSubmitVehicleNumber = async (id, orderNo) => {
     try {
       const vehicleNumber = editedVehicleNumbers[id];
       setChangeVehicalNo(true);
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-            sheetName: "INVOICE-DELIVERY",
-            action: "updateVehicleByOrderNo",
-            orderNo: orderNo,
-            vehicleNumber: vehicleNumber,
-          }),
-        }
-      );
 
-      const result = await response.json();
-      if (result.success) {
-        toast.success("Vehicle number updated successfully!");
+      // Execute both requests in parallel
+      const [resultOrderInvoice, resultInvoiceDelivery] = await Promise.all([
+        fetch(
+          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+              sheetName: "ORDER-INVOICE",
+              action: "updateVehicleByOrderNoOrderInvoice",
+              orderNo: orderNo,
+              vehicleNumber: vehicleNumber,
+            }),
+          }
+        ).then((res) => res.json()),
+
+        fetch(
+          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+              sheetName: "INVOICE-DELIVERY",
+              action: "updateVehicleByOrderNoInvoiceDelivery",
+              orderNo: orderNo,
+              vehicleNumber: vehicleNumber,
+            }),
+          }
+        ).then((res) => res.json()),
+      ]);
+
+      // Check if both updates were successful
+      if (resultOrderInvoice.success) {
+        toast.success("Vehicle number updated successfully in both sheets!");
+
+        // Update local state
+        setDoData((prevData) =>
+          prevData.map((item) =>
+            item.serialNumber === orderNo
+              ? { ...item, vehicleNumber: vehicleNumber }
+              : item
+          )
+        );
+
         setEditingId(null);
       } else {
-        setEditingId(null);
-        throw new Error(result.error || "Failed to update vehicle number");
+        // Handle partial success or failure
+        const errors = [];
+        if (!resultOrderInvoice.success) {
+          errors.push(`ORDER-INVOICE: ${resultOrderInvoice.error}`);
+        }
+        if (!resultInvoiceDelivery.success) {
+          errors.push(`INVOICE-DELIVERY: ${resultInvoiceDelivery.error}`);
+        }
+        throw new Error(errors.join(", "));
       }
     } catch (error) {
       console.error("Error updating vehicle number:", error);
       toast.error("Failed to update vehicle number");
+      setEditingId(null);
     } finally {
       setChangeVehicalNo(false);
     }
@@ -733,8 +847,7 @@ const DoGenerate = () => {
               setShowModal(false);
             }}
             className="text-gray-500 hover:text-gray-700"
-          >
-          </button>
+          ></button>
         </div>
       </div>
 
@@ -1053,10 +1166,10 @@ const DoGenerate = () => {
                     placeholder="Search or add party name"
                     value={formData.partyName || undefined}
                     onSearch={(value) => {
-                      setFormData(prev => ({ ...prev, partyName: value }));
+                      setFormData((prev) => ({ ...prev, partyName: value }));
                     }}
                     onChange={(value) => {
-                      setFormData(prev => ({ ...prev, partyName: value }));
+                      setFormData((prev) => ({ ...prev, partyName: value }));
                     }}
                     filterOption={false}
                     notFoundContent={null}
@@ -1072,9 +1185,25 @@ const DoGenerate = () => {
                             >
                               {isAddingParty ? (
                                 <>
-                                  <svg className="animate-spin mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  <svg
+                                    className="animate-spin mr-2 h-4 w-4 text-blue-600"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
                                   </svg>
                                   Adding...
                                 </>
@@ -1086,10 +1215,9 @@ const DoGenerate = () => {
                               )}
                             </div>
                           )}
-
                       </>
                     )}
-                    options={partyNames.map(party => ({
+                    options={partyNames.map((party) => ({
                       value: party,
                       label: party,
                     }))}
@@ -1183,30 +1311,49 @@ const DoGenerate = () => {
                         {menu}
                         {selectedTransporter &&
                           selectedTransporter.trim() !== "" &&
-                          !transporterName.includes(selectedTransporter.trim()) && (
+                          !transporterName.includes(
+                            selectedTransporter.trim()
+                          ) && (
                             <div
                               onClick={handleAddNewTransporter}
                               className="px-3 py-2 hover:bg-blue-100 cursor-pointer text-blue-600 border-t border-gray-200 flex items-center"
                             >
                               {isAddingTransporter ? (
                                 <>
-                                  <svg className="animate-spin mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  <svg
+                                    className="animate-spin mr-2 h-4 w-4 text-blue-600"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
                                   </svg>
                                   Adding...
                                 </>
                               ) : (
                                 <>
                                   <Plus size={14} className="mr-2" />
-                                  Add "{selectedTransporter.trim()}" as new transporter
+                                  Add "{selectedTransporter.trim()}" as new
+                                  transporter
                                 </>
                               )}
                             </div>
                           )}
                       </>
                     )}
-                    options={transporterName.map(transporter => ({
+                    options={transporterName.map((transporter) => ({
                       value: transporter,
                       label: transporter,
                     }))}
@@ -1332,10 +1479,10 @@ const DoGenerate = () => {
                     placeholder="Search or add brand name"
                     value={formData.brandName || undefined}
                     onSearch={(value) => {
-                      setFormData(prev => ({ ...prev, brandName: value }));
+                      setFormData((prev) => ({ ...prev, brandName: value }));
                     }}
                     onChange={(value) => {
-                      setFormData(prev => ({ ...prev, brandName: value }));
+                      setFormData((prev) => ({ ...prev, brandName: value }));
                     }}
                     filterOption={false}
                     notFoundContent={null}
@@ -1351,9 +1498,25 @@ const DoGenerate = () => {
                             >
                               {isAddingBrand ? (
                                 <>
-                                  <svg className="animate-spin mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  <svg
+                                    className="animate-spin mr-2 h-4 w-4 text-blue-600"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <circle
+                                      className="opacity-25"
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      stroke="currentColor"
+                                      strokeWidth="4"
+                                    ></circle>
+                                    <path
+                                      className="opacity-75"
+                                      fill="currentColor"
+                                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                    ></path>
                                   </svg>
                                   Adding...
                                 </>
@@ -1367,7 +1530,7 @@ const DoGenerate = () => {
                           )}
                       </>
                     )}
-                    options={brandOptions.map(brand => ({
+                    options={brandOptions.map((brand) => ({
                       value: brand,
                       label: brand,
                     }))}
@@ -1376,7 +1539,6 @@ const DoGenerate = () => {
                     required
                   />
                 </div>
-
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
