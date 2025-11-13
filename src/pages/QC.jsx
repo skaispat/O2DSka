@@ -5,13 +5,12 @@ import {
   Clock,
   CheckCircle,
   Upload,
-  RefreshCw,
   Columns,
+  X,
 } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import toast from "react-hot-toast";
-
-// Import jsPDF - you need to install it: npm install jspdf
+import supabase from "../SupabaseClient";
 import jsPDF from "jspdf";
 
 const QC = () => {
@@ -46,6 +45,7 @@ const QC = () => {
     "gateInDateTime",
   ]);
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Column options for both tabs
   const columnOptions = {
@@ -80,6 +80,20 @@ const QC = () => {
     ],
   };
 
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
   const toggleColumn = (columnId) => {
     if (selectedColumns.includes(columnId)) {
       setSelectedColumns(selectedColumns.filter((col) => col !== columnId));
@@ -91,35 +105,58 @@ const QC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
-      );
-      const json = await response.json();
+      const { data, error } = await supabase
+        .from('order_invoice')
+        .select(`
+          id,
+          order_no,
+          party_name,
+          erp_do_no,
+          transporter_name,
+          lr_number,
+          vehicle_number,
+          delivery_term,
+          brand_name,
+          dispatch_qty,
+          planned6,
+          actual6,
+          section,
+          tag_proper,
+          type_of_material,
+          red_ness,
+          no_rust,
+          bundle_count_no,
+          pdf,
+          gate_in_date_and_time,
+          timestamp
+        `)
+        .order('timestamp', { ascending: true });
 
-      if (json.success && Array.isArray(json.data)) {
-        const allData = json.data.slice(6).map((row, index) => ({
-          id: index + 1,
-          serialNumber: row[1], // Column A
-          partyName: row[2], // Column C
-          erpDoNo: row[3], // Column D
-          transporterName: row[4], // Column E
-          lrNumber: row[5], // Column F
-          vehicleNumber: row[6], // Column G
-          deliveryTerm: row[7], // Column H
-          brandName: row[8], // Column I
-          dispatchQty: row[9], // Column J
-          planned6: row[31], // Column AF - Planned6
-          actual6: row[32], // Column AG - Actual6
-          section: row[34], // Column AI - Section
-          tagProper: row[35], // Column AJ - Tag Proper
-          typeOfMaterial: row[36], // Column AK - Type Of Material
-          redNess: row[37], // Column AL - Red Ness
-          noRust: row[38], // Column AM - No Rust
-          bundleCountNo: row[39], // Column AN - Bundle Count No.
-          pdf: row[40], // Column AO - PDF
-          gateInDateTime: row[41], // Column AP - Gate In Date&Time (added this field)
-          vehicalNo: row[6],
+      if (error) throw error;
+
+      if (data) {
+        const allData = data.map((row) => ({
+          id: row.id,
+          serialNumber: row.order_no,
+          partyName: row.party_name,
+          erpDoNo: row.erp_do_no,
+          transporterName: row.transporter_name,
+          lrNumber: row.lr_number,
+          vehicleNumber: row.vehicle_number,
+          deliveryTerm: row.delivery_term,
+          brandName: row.brand_name,
+          dispatchQty: row.dispatch_qty,
+          planned6: row.planned6,
+          actual6: row.actual6,
+          section: row.section,
+          tagProper: row.tag_proper,
+          typeOfMaterial: row.type_of_material,
+          redNess: row.red_ness,
+          noRust: row.no_rust,
+          bundleCountNo: row.bundle_count_no,
+          pdf: row.pdf,
+          gateInDateTime: row.gate_in_date_and_time,
+          vehicalNo: row.vehicle_number,
         }));
 
         const pending = allData.filter(
@@ -298,16 +335,6 @@ const QC = () => {
       // ===== Output PDF =====
       const pdfOutput = doc.output("datauristring");
       
-      // REMOVED THE AUTO-DOWNLOAD CODE
-      // const link = document.createElement("a");
-      // link.href = pdfOutput;
-      // link.download = `QC_Report_${
-      //   currentItem.serialNumber || "Unknown"
-      // }_${Date.now()}.pdf`;
-      // link.click();
-
-      // toast.success("PDF generated successfully!"); // REMOVED THIS TOO
-
       return {
         success: true,
         fileUrl: pdfOutput,
@@ -325,63 +352,60 @@ const QC = () => {
     }
   };
 
-  const uploadPDFToDrive = async (pdfResult) => {
+  const uploadPDFToSupabase = async (pdfResult) => {
     try {
-      // Extract just the base64 data part
+      // Extract base64 data
       const base64Data = pdfResult.fileUrl.split(",")[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      const blob = new Blob([bytes], { type: 'application/pdf' });
 
-      const uploadResponse = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            action: "uploadFile",
-            fileName: pdfResult.fileName,
-            base64Data: base64Data,
-            mimeType: "application/pdf",
-            folderId: "1kecfwGffVCpLrZPwqHNUzCcGZlXOaYA5",
-          }),
-        }
-      );
+      // Generate unique file name
+      const fileName = `qc-reports/${pdfResult.fileName}`;
 
-      const result = await uploadResponse.json();
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('qc_reports')
+        .upload(fileName, blob, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (!result.success) {
-        console.error("Upload error:", result.error);
-        toast.error("Failed to upload PDF to Google Drive");
-        return { success: false, error: result.error };
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      return result;
+      // Get public URL
+      const { data: urlData } = supabase
+        .storage
+        .from('qc_reports')
+        .getPublicUrl(fileName);
+
+      return {
+        success: true,
+        fileUrl: urlData.publicUrl
+      };
     } catch (error) {
       console.error("Error uploading PDF:", error);
-      toast.error("Failed to upload PDF");
-      return { success: false, error: "Failed to upload PDF" };
+      return { 
+        success: false, 
+        error: error.message || "Failed to upload PDF" 
+      };
     }
   };
 
-  function getFormattedDateTime() {
-    const now = new Date();
-
-    const pad = (num) => num.toString().padStart(2, "0");
-
-    const day = pad(now.getDate());
-    const month = pad(now.getMonth() + 1); // Months are 0-based
-    const year = now.getFullYear();
-
-    const hours = pad(now.getHours());
-    const minutes = pad(now.getMinutes());
-    const seconds = pad(now.getSeconds());
-
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-  }
-
   const handleSubmitQC = async () => {
     setIsSubmitting(true);
-    const currentDateTime = getFormattedDateTime();
+    const currentDateTime = new Date().toLocaleString("en-CA", { 
+  timeZone: "Asia/Kolkata", 
+  hour12: false 
+}).replace(',', '') 
 
     try {
       // Generate PDF
@@ -390,44 +414,30 @@ const QC = () => {
         throw new Error(pdfResult.error || "Failed to generate PDF");
       }
 
-      // Upload PDF to Google Drive
-      const uploadResult = await uploadPDFToDrive(pdfResult);
+      // Upload PDF to Supabase
+      const uploadResult = await uploadPDFToSupabase(pdfResult);
       if (!uploadResult.success) {
-        throw new Error(
-          uploadResult.error || "Failed to upload PDF to Google Drive"
-        );
+        throw new Error(uploadResult.error || "Failed to upload PDF");
       }
 
-      // Update the Google Sheet
-      const updateResponse = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-            sheetName: "ORDER-INVOICE",
-            action: "update",
-            rowIndex: currentItem.id + 6,
-            columnData: JSON.stringify({
-              AG: `'${currentDateTime}`, // Column AG - Actual6
-              AI: formData.section, // Column AI - Section
-              AJ: formData.tagProper, // Column AJ - Tag Proper
-              AK: formData.typeOfMaterial, // Column AK - Type Of Material
-              AL: formData.redNess, // Column AL - Red Ness
-              AM: formData.noRust, // Column AM - No Rust
-              AN: formData.bundleCountNo, // Column AN - Bundle Count No.
-              AO: uploadResult.fileUrl, // Column AO - PDF URL
-            }),
-          }),
-        }
-      );
+      // Update the record in Supabase
+      const { error: updateError } = await supabase
+        .from('order_invoice')
+        .update({
+          actual6: currentDateTime,
+          section: formData.section,
+          tag_proper: formData.tagProper,
+          type_of_material: formData.typeOfMaterial,
+          red_ness: formData.redNess,
+          no_rust: formData.noRust,
+          bundle_count_no: formData.bundleCountNo,
+          pdf: uploadResult.fileUrl,
+          // planned7: currentDateTime,
+        })
+        .eq('id', currentItem.id);
 
-      const updateResult = await updateResponse.json();
-      if (!updateResult.success) {
-        throw new Error(updateResult.error || "Failed to update Google Sheet");
+      if (updateError) {
+        throw new Error(`Database update failed: ${updateError.message}`);
       }
 
       toast.success("QC data submitted successfully!");
@@ -441,38 +451,269 @@ const QC = () => {
     }
   };
 
+  // Filter data by order_no (serialNumber) and partyName
   const filteredPendingData = pendingData
     .filter((item) => {
-      const matchesSearch =
-        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) 
+      const orderNo = item.serialNumber ? String(item.serialNumber).toLowerCase() : "";
+      const partyName = item.partyName ? String(item.partyName).toLowerCase() : "";
+      const searchLower = searchTerm.toLowerCase();
+      
+      const matchesSearch = 
+        orderNo.includes(searchLower) ||
+        partyName.includes(searchLower);
+      
       const matchesParty =
         filterParty === "all" || item.partyName === filterParty;
-      return matchesSearch && matchesParty;
-    })
-   .reverse();
-
-  const filteredHistoryData = historyData
-    .filter((item) => {
-      const matchesSearch =
-        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) 
-      const matchesParty =
-        filterParty === "all" || item.partyName === filterParty;
+      
       return matchesSearch && matchesParty;
     })
     .reverse();
 
+  const filteredHistoryData = historyData
+    .filter((item) => {
+      const orderNo = item.serialNumber ? String(item.serialNumber).toLowerCase() : "";
+      const partyName = item.partyName ? String(item.partyName).toLowerCase() : "";
+      const searchLower = searchTerm.toLowerCase();
+      
+      const matchesSearch = 
+        orderNo.includes(searchLower) ||
+        partyName.includes(searchLower);
+      
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      
+      return matchesSearch && matchesParty;
+    })
+    .reverse();
+
+  // Mobile Card Component for Pending Items
+  const MobilePendingCard = ({ item }) => (
+    <div className="bg-white rounded-lg shadow border border-gray-200 p-4 mb-4">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          {selectedColumns.includes("serialNumber") && (
+            <p className="text-sm font-medium text-gray-900">
+              Serial: {item.serialNumber}
+            </p>
+          )}
+          {selectedColumns.includes("partyName") && (
+            <p className="text-sm text-gray-600 mt-1">
+              Party: {item.partyName}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => handleOpenModal(item)}
+          className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+        >
+          QC
+        </button>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        {selectedColumns.includes("erpDoNo") && item.erpDoNo && (
+          <div>
+            <span className="text-gray-500">ERP DO:</span>
+            <p className="font-medium">{item.erpDoNo}</p>
+          </div>
+        )}
+        {selectedColumns.includes("transporterName") && item.transporterName && (
+          <div>
+            <span className="text-gray-500">Transporter:</span>
+            <p className="font-medium">{item.transporterName}</p>
+          </div>
+        )}
+        {selectedColumns.includes("vehicleNumber") && item.vehicleNumber && (
+          <div>
+            <span className="text-gray-500">Vehicle:</span>
+            <p className="font-medium">{item.vehicleNumber}</p>
+          </div>
+        )}
+        {selectedColumns.includes("brandName") && item.brandName && (
+          <div>
+            <span className="text-gray-500">Brand:</span>
+            <p className="font-medium">{item.brandName}</p>
+          </div>
+        )}
+        {selectedColumns.includes("dispatchQty") && item.dispatchQty && (
+          <div>
+            <span className="text-gray-500">Qty:</span>
+            <p className="font-medium">{item.dispatchQty}</p>
+          </div>
+        )}
+        {selectedColumns.includes("lrNumber") && item.lrNumber && (
+          <div>
+            <span className="text-gray-500">LR No:</span>
+            <p className="font-medium">{item.lrNumber}</p>
+          </div>
+        )}
+        {selectedColumns.includes("gateInDateTime") && item.gateInDateTime && (
+          <div>
+            <span className="text-gray-500">Gate In:</span>
+            <p className="font-medium">
+              {new Date(item.gateInDateTime).toLocaleDateString("en-GB")}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // Mobile Card Component for History Items
+  const MobileHistoryCard = ({ item }) => (
+    <div className="bg-white rounded-lg shadow border border-gray-200 p-4 mb-4">
+      <div className="flex justify-between items-start mb-3">
+        <div>
+          {selectedColumns.includes("serialNumber") && (
+            <p className="text-sm font-medium text-gray-900">
+              Serial: {item.serialNumber}
+            </p>
+          )}
+          {selectedColumns.includes("partyName") && (
+            <p className="text-sm text-gray-600 mt-1">
+              Party: {item.partyName}
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => handleOpenModal(item)}
+          className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+        >
+          Edit
+        </button>
+      </div>
+      
+      <div className="space-y-2 text-sm">
+        {selectedColumns.includes("actual6") && item.actual6 && (
+          <div>
+            <span className="text-gray-500">QC Date:</span>
+            <p className="font-medium">
+              {new Date(item.actual6).toLocaleString()}
+            </p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("erpDoNo") && item.erpDoNo && (
+          <div>
+            <span className="text-gray-500">ERP DO:</span>
+            <p className="font-medium">{item.erpDoNo}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("vehicleNumber") && item.vehicleNumber && (
+          <div>
+            <span className="text-gray-500">Vehicle:</span>
+            <p className="font-medium">{item.vehicleNumber}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("brandName") && item.brandName && (
+          <div>
+            <span className="text-gray-500">Brand:</span>
+            <p className="font-medium">{item.brandName}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("dispatchQty") && item.dispatchQty && (
+          <div>
+            <span className="text-gray-500">Qty:</span>
+            <p className="font-medium">{item.dispatchQty}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("section") && item.section && (
+          <div>
+            <span className="text-gray-500">Section:</span>
+            <p className="font-medium">{item.section}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("tagProper") && item.tagProper && (
+          <div>
+            <span className="text-gray-500">Tag Proper:</span>
+            <p className="font-medium">{item.tagProper}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("typeOfMaterial") && item.typeOfMaterial && (
+          <div>
+            <span className="text-gray-500">Material Type:</span>
+            <p className="font-medium">{item.typeOfMaterial}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("redNess") && item.redNess && (
+          <div>
+            <span className="text-gray-500">Red Ness:</span>
+            <p className="font-medium">{item.redNess}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("noRust") && item.noRust && (
+          <div>
+            <span className="text-gray-500">No Rust:</span>
+            <p className="font-medium">{item.noRust}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("bundleCountNo") && item.bundleCountNo && (
+          <div>
+            <span className="text-gray-500">Bundle Count:</span>
+            <p className="font-medium">{item.bundleCountNo}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("lrNumber") && item.lrNumber && (
+          <div>
+            <span className="text-gray-500">LR No:</span>
+            <p className="font-medium">{item.lrNumber}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("gateInDateTime") && item.gateInDateTime && (
+          <div>
+            <span className="text-gray-500">Gate In:</span>
+            <p className="font-medium">{item.gateInDateTime}</p>
+          </div>
+        )}
+        
+        {selectedColumns.includes("pdf") && item.pdf && (
+          <div>
+            <span className="text-gray-500">PDF:</span>
+            <a
+              href={item.pdf}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              View Report
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 p-2 md:p-0">
       {/* Modal */}
       {isModalOpen && currentItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl w-full sm:max-w-md max-h-screen overflow-y-auto">
-            <div className="bg-indigo-600 p-4 text-white">
-              <h2 className="text-xl font-bold">QC Details</h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="bg-indigo-600 p-4 text-white sticky top-0">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">QC Details</h2>
+                <button 
+                  onClick={handleCloseModal}
+                  className="text-white hover:text-gray-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 md:p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Serial No
@@ -619,17 +860,17 @@ const QC = () => {
               </div>
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+            <div className="bg-gray-50 px-4 md:px-6 py-4 flex justify-end space-x-3 sticky bottom-0">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors text-sm md:text-base"
                 disabled={isSubmitting}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmitQC}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors flex items-center justify-center"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors flex items-center justify-center text-sm md:text-base"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -665,86 +906,102 @@ const QC = () => {
         </div>
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">QC</h1>
-        <button
-          onClick={fetchData}
-          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-          disabled={loading}
-        >
-          <RefreshCw
-            size={16}
-            className={`mr-2 ${loading ? "animate-spin" : ""}`}
-          />
-          Refresh
-        </button>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-800">QC</h1>
       </div>
 
       {/* Filter and Search */}
-      <div className="bg-white p-4 rounded-lg shadow flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
-        <div className="flex flex-1 max-w-md">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="Search by party name or DO number..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search
-              size={20}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            />
+      <div className="bg-white p-3 md:p-4 rounded-lg shadow">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+          {/* Search Input */}
+          <div className="flex-1">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by party name or DO number..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Search
+                size={20}
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          <Filter size={16} className="text-gray-500" />
-          <select
-            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={filterParty}
-            onChange={(e) => setFilterParty(e.target.value)}
-          >
-            <option value="all">All Parties</option>
-            {uniqueParties.map((party) => (
-              <option key={party} value={party}>
-                {party}
-              </option>
-            ))}
-          </select>
+          {/* Filter and Column Controls */}
+          <div className="flex gap-2 md:gap-3">
+            {/* Party Filter */}
+            <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-2">
+              <Filter size={16} className="text-gray-500 flex-shrink-0" />
+              <select
+                className="border-none focus:outline-none focus:ring-0 text-sm bg-transparent"
+                value={filterParty}
+                onChange={(e) => setFilterParty(e.target.value)}
+              >
+                <option value="all">All Parties</option>
+                {uniqueParties.map((party) => (
+                  <option key={party} value={party}>
+                    {party}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Column Filter Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowColumnDropdown(!showColumnDropdown)}
-              className="flex items-center px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 hover:bg-gray-50"
-            >
-              <Columns size={16} className="mr-2" />
-              Columns
-            </button>
-            {showColumnDropdown && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-gray-200">
-                <div className="p-2 max-h-60 overflow-y-auto">
-                  {columnOptions[activeTab].map((column) => (
-                    <div key={column.id} className="flex items-center p-2">
-                      <input
-                        type="checkbox"
-                        id={`column-${column.id}`}
-                        checked={selectedColumns.includes(column.id)}
-                        onChange={() => toggleColumn(column.id)}
-                        className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                      />
-                      <label
-                        htmlFor={`column-${column.id}`}
-                        className="ml-2 text-sm text-gray-700"
-                      >
-                        {column.label}
-                      </label>
+            {/* Column Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white hover:bg-gray-50"
+              >
+                <Columns size={16} className="text-gray-500" />
+                <span className="hidden sm:inline">Columns</span>
+                <svg
+                  className={`h-4 w-4 transition-transform ${showColumnDropdown ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {showColumnDropdown && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowColumnDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-40 sm:w-56 bg-white rounded-md shadow-lg z-20 border border-gray-200">
+                    <div className="p-2 max-h-60 overflow-y-auto">
+                      {columnOptions[activeTab].map((column) => (
+                        <div key={column.id} className="flex items-center p-2">
+                          <input
+                            type="checkbox"
+                            id={`column-${column.id}`}
+                            checked={selectedColumns.includes(column.id)}
+                            onChange={() => toggleColumn(column.id)}
+                            className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                          />
+                          <label
+                            htmlFor={`column-${column.id}`}
+                            className="ml-2 text-sm text-gray-700"
+                          >
+                            {column.label}
+                          </label>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -754,7 +1011,7 @@ const QC = () => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+              className={`flex-1 py-3 px-2 md:px-6 font-medium text-sm border-b-2 text-center ${
                 activeTab === "pending"
                   ? "border-indigo-500 text-indigo-600"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -765,7 +1022,7 @@ const QC = () => {
               Pending ({filteredPendingData.length})
             </button>
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+              className={`flex-1 py-3 px-2 md:px-6 font-medium text-sm border-b-2 text-center ${
                 activeTab === "history"
                   ? "border-indigo-500 text-indigo-600"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -779,349 +1036,383 @@ const QC = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-3 md:p-6">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-              <span className="text-gray-600 ml-3">Loading data...</span>
+            <div className="flex items-center justify-center py-8 md:py-12">
+              <div className="animate-spin rounded-full h-6 w-6 md:h-8 md:w-8 border-b-2 border-indigo-600"></div>
+              <span className="text-gray-600 ml-3 text-sm md:text-base">Loading data...</span>
             </div>
           ) : (
             <>
               {activeTab === "pending" && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        {selectedColumns.includes("serialNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Serial Number
-                          </th>
-                        )}
-                        {selectedColumns.includes("partyName") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Party Name
-                          </th>
-                        )}
-                        {selectedColumns.includes("erpDoNo") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            ERP DO No.
-                          </th>
-                        )}
-                        {selectedColumns.includes("transporterName") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Transporter Name
-                          </th>
-                        )}
-                        {selectedColumns.includes("vehicleNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Vehicle Number
-                          </th>
-                        )}
-                        {selectedColumns.includes("brandName") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Brand Name
-                          </th>
-                        )}
-                        {selectedColumns.includes("dispatchQty") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Dispatch Qty
-                          </th>
-                        )}
-                        {selectedColumns.includes("lrNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            LR No.
-                          </th>
-                        )}
-                        {selectedColumns.includes("gateInDateTime") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Gate In Date&Time
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                <>
+                  {isMobile ? (
+                    <div className="space-y-3">
                       {filteredPendingData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => handleOpenModal(item)}
-                              className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
-                            >
-                              QC
-                            </button>
-                          </td>
-                          {selectedColumns.includes("serialNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.serialNumber}
-                            </td>
-                          )}
-                          {selectedColumns.includes("partyName") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.partyName}
-                            </td>
-                          )}
-                          {selectedColumns.includes("erpDoNo") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.erpDoNo}
-                            </td>
-                          )}
-                          {selectedColumns.includes("transporterName") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.transporterName}
-                            </td>
-                          )}
-                          {selectedColumns.includes("vehicleNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.vehicleNumber}
-                            </td>
-                          )}
-                          {selectedColumns.includes("brandName") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.brandName}
-                            </td>
-                          )}
-                          {selectedColumns.includes("dispatchQty") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.dispatchQty}
-                            </td>
-                          )}
-                          {selectedColumns.includes("lrNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.lrNumber}
-                            </td>
-                          )}
-                          {selectedColumns.includes("gateInDateTime") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.gateInDateTime
-                                ? new Date(
-                                    item.gateInDateTime
-                                  ).toLocaleDateString("en-GB")
-                                : "N/A"}
-                            </td>
-                          )}
-                        </tr>
+                        <MobilePendingCard key={item.id} item={item} />
                       ))}
-                    </tbody>
-                  </table>
-                  {filteredPendingData.length === 0 && !loading && (
-                    <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">
-                        No pending QC records found.
-                      </p>
+                      {filteredPendingData.length === 0 && (
+                        <div className="px-6 py-8 text-center">
+                          <p className="text-gray-500 text-sm md:text-base">
+                            No pending QC records found.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Action
+                            </th>
+                            {selectedColumns.includes("serialNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Serial Number
+                              </th>
+                            )}
+                            {selectedColumns.includes("partyName") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Party Name
+                              </th>
+                            )}
+                            {selectedColumns.includes("erpDoNo") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ERP DO No.
+                              </th>
+                            )}
+                            {selectedColumns.includes("transporterName") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Transporter Name
+                              </th>
+                            )}
+                            {selectedColumns.includes("vehicleNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Vehicle Number
+                              </th>
+                            )}
+                            {selectedColumns.includes("brandName") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Brand Name
+                              </th>
+                            )}
+                            {selectedColumns.includes("dispatchQty") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Dispatch Qty
+                              </th>
+                            )}
+                            {selectedColumns.includes("lrNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                LR No.
+                              </th>
+                            )}
+                            {selectedColumns.includes("gateInDateTime") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Gate In Date&Time
+                              </th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {filteredPendingData.map((item) => (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => handleOpenModal(item)}
+                                  className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                                >
+                                  QC
+                                </button>
+                              </td>
+                              {selectedColumns.includes("serialNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.serialNumber}
+                                </td>
+                              )}
+                              {selectedColumns.includes("partyName") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.partyName}
+                                </td>
+                              )}
+                              {selectedColumns.includes("erpDoNo") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.erpDoNo}
+                                </td>
+                              )}
+                              {selectedColumns.includes("transporterName") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.transporterName}
+                                </td>
+                              )}
+                              {selectedColumns.includes("vehicleNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.vehicleNumber}
+                                </td>
+                              )}
+                              {selectedColumns.includes("brandName") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.brandName}
+                                </td>
+                              )}
+                              {selectedColumns.includes("dispatchQty") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.dispatchQty}
+                                </td>
+                              )}
+                              {selectedColumns.includes("lrNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.lrNumber}
+                                </td>
+                              )}
+                              {selectedColumns.includes("gateInDateTime") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.gateInDateTime
+                                    ? new Date(
+                                        item.gateInDateTime
+                                      ).toLocaleDateString("en-GB")
+                                    : "N/A"}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {filteredPendingData.length === 0 && (
+                        <div className="px-6 py-8 text-center">
+                          <p className="text-gray-500 text-sm md:text-base">
+                            No pending QC records found.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
 
               {activeTab === "history" && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Action
-                        </th>
-                        {selectedColumns.includes("serialNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Serial Number
-                          </th>
-                        )}
-                        {selectedColumns.includes("actual6") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            QC Date
-                          </th>
-                        )}
-                        {selectedColumns.includes("partyName") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Party Name
-                          </th>
-                        )}
-                        {selectedColumns.includes("erpDoNo") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            ERP DO No.
-                          </th>
-                        )}
-                        {selectedColumns.includes("vehicleNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Vehicle Number
-                          </th>
-                        )}
-                        {selectedColumns.includes("brandName") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Brand Name
-                          </th>
-                        )}
-                        {selectedColumns.includes("dispatchQty") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Dispatch Qty
-                          </th>
-                        )}
-                        {selectedColumns.includes("section") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Section
-                          </th>
-                        )}
-                        {selectedColumns.includes("tagProper") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Tag Proper
-                          </th>
-                        )}
-                        {selectedColumns.includes("typeOfMaterial") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Type Of Material
-                          </th>
-                        )}
-                        {selectedColumns.includes("redNess") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Red Ness
-                          </th>
-                        )}
-                        {selectedColumns.includes("noRust") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            No Rust
-                          </th>
-                        )}
-                        {selectedColumns.includes("bundleCountNo") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Bundle Count No.
-                          </th>
-                        )}
-                        {selectedColumns.includes("lrNumber") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            LR No.
-                          </th>
-                        )}
-                        {selectedColumns.includes("gateInDateTime") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Gate In Date&Time
-                          </th>
-                        )}
-                        {selectedColumns.includes("pdf") && (
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            PDF
-                          </th>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                <>
+                  {isMobile ? (
+                    <div className="space-y-3">
                       {filteredHistoryData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => handleOpenModal(item)}
-                              className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
-                            >
-                              Edit
-                            </button>
-                          </td>
-                          {selectedColumns.includes("serialNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.serialNumber}
-                            </td>
-                          )}
-                          {selectedColumns.includes("actual6") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.actual6
-                                ? new Date(item.actual6).toLocaleString()
-                                : "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("partyName") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.partyName}
-                            </td>
-                          )}
-                          {selectedColumns.includes("erpDoNo") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.erpDoNo}
-                            </td>
-                          )}
-                          {selectedColumns.includes("vehicleNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.vehicleNumber}
-                            </td>
-                          )}
-                          {selectedColumns.includes("brandName") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.brandName}
-                            </td>
-                          )}
-                          {selectedColumns.includes("dispatchQty") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.dispatchQty}
-                            </td>
-                          )}
-                          {selectedColumns.includes("section") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.section || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("tagProper") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.tagProper || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("typeOfMaterial") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.typeOfMaterial || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("redNess") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.redNess || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("noRust") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.noRust || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("bundleCountNo") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.bundleCountNo || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("lrNumber") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.lrNumber || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("gateInDateTime") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.gateInDateTime || "-"}
-                            </td>
-                          )}
-                          {selectedColumns.includes("pdf") && (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.pdf ? (
-                                <a
-                                  href={item.pdf}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-indigo-600 hover:text-indigo-800"
-                                >
-                                  View
-                                </a>
-                              ) : (
-                                "-"
-                              )}
-                            </td>
-                          )}
-                        </tr>
+                        <MobileHistoryCard key={item.id} item={item} />
                       ))}
-                    </tbody>
-                  </table>
-                  {filteredHistoryData.length === 0 && !loading && (
-                    <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">
-                        No historical QC records found.
-                      </p>
+                      {filteredHistoryData.length === 0 && (
+                        <div className="px-6 py-8 text-center">
+                          <p className="text-gray-500 text-sm md:text-base">
+                            No historical QC records found.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Action
+                            </th>
+                            {selectedColumns.includes("serialNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Serial Number
+                              </th>
+                            )}
+                            {selectedColumns.includes("actual6") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                QC Date
+                              </th>
+                            )}
+                            {selectedColumns.includes("partyName") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Party Name
+                              </th>
+                            )}
+                            {selectedColumns.includes("erpDoNo") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                ERP DO No.
+                              </th>
+                            )}
+                            {selectedColumns.includes("vehicleNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Vehicle Number
+                              </th>
+                            )}
+                            {selectedColumns.includes("brandName") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Brand Name
+                              </th>
+                            )}
+                            {selectedColumns.includes("dispatchQty") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Dispatch Qty
+                              </th>
+                            )}
+                            {selectedColumns.includes("section") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Section
+                              </th>
+                            )}
+                            {selectedColumns.includes("tagProper") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Tag Proper
+                              </th>
+                            )}
+                            {selectedColumns.includes("typeOfMaterial") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Type Of Material
+                              </th>
+                            )}
+                            {selectedColumns.includes("redNess") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Red Ness
+                              </th>
+                            )}
+                            {selectedColumns.includes("noRust") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                No Rust
+                              </th>
+                            )}
+                            {selectedColumns.includes("bundleCountNo") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Bundle Count No.
+                              </th>
+                            )}
+                            {selectedColumns.includes("lrNumber") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                LR No.
+                              </th>
+                            )}
+                            {selectedColumns.includes("gateInDateTime") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Gate In Date&Time
+                              </th>
+                            )}
+                            {selectedColumns.includes("pdf") && (
+                              <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                PDF
+                              </th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {filteredHistoryData.map((item) => (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => handleOpenModal(item)}
+                                  className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                              {selectedColumns.includes("serialNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.serialNumber}
+                                </td>
+                              )}
+                              {selectedColumns.includes("actual6") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.actual6
+                                    ? new Date(item.actual6).toLocaleString()
+                                    : "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("partyName") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.partyName}
+                                </td>
+                              )}
+                              {selectedColumns.includes("erpDoNo") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.erpDoNo}
+                                </td>
+                              )}
+                              {selectedColumns.includes("vehicleNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.vehicleNumber}
+                                </td>
+                              )}
+                              {selectedColumns.includes("brandName") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.brandName}
+                                </td>
+                              )}
+                              {selectedColumns.includes("dispatchQty") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.dispatchQty}
+                                </td>
+                              )}
+                              {selectedColumns.includes("section") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.section || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("tagProper") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.tagProper || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("typeOfMaterial") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.typeOfMaterial || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("redNess") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.redNess || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("noRust") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.noRust || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("bundleCountNo") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.bundleCountNo || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("lrNumber") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.lrNumber || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("gateInDateTime") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.gateInDateTime || "-"}
+                                </td>
+                              )}
+                              {selectedColumns.includes("pdf") && (
+                                <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                  {item.pdf ? (
+                                    <a
+                                      href={item.pdf}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-indigo-600 hover:text-indigo-800"
+                                    >
+                                      View
+                                    </a>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {filteredHistoryData.length === 0 && (
+                        <div className="px-6 py-8 text-center">
+                          <p className="text-gray-500 text-sm md:text-base">
+                            No historical QC records found.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
             </>
           )}

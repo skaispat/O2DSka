@@ -1,9 +1,8 @@
-
-
 import React, { useState, useEffect, useRef } from "react";
-import { Filter, Search, Clock, CheckCircle, RefreshCw, X } from "lucide-react";
+import { Filter, Search, Clock, CheckCircle, RefreshCw, X, Columns, Truck, Package, Calendar } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import toast from "react-hot-toast";
+import supabase from "../SupabaseClient";
 
 const GateIn = () => {
   const { user } = useAuthStore();
@@ -51,31 +50,31 @@ const GateIn = () => {
   };
 
   const fetchData = async () => {
-    setLoading(true); // start loading
+    setLoading(true);
     try {
-      const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE`
-      );
-      const json = await response.json();
+      const { data, error } = await supabase
+        .from('order_invoice')
+        .select('*')
+        .order('timestamp', { ascending: true });
 
-      if (json.success && Array.isArray(json.data)) {
-        // Process the data to match your requirements
-        const allData = json.data.slice(6).map((row, index) => ({
-          id: index + 1,
-          serialNumber: row[1], // Column A (assuming this is serial number)
-          partyName: row[2], // Column C
-          erpDoNo: row[3], // Column D
-          transporterName: row[4], // Column E
-          lrNumber: row[5], // Column F
-          vehicleNumber: row[6], // Column G
-          deliveryTerm: row[7], // Column H
-          brandName: row[8], // Column I
-          dispatchQty: row[9], // Column J
-          planned1: row[10], // Column K
-          actual1: row[11], // Column L
+      if (error) throw error;
+
+      if (data) {
+        const allData = data.map((row, index) => ({
+          id: row.id || index + 1,
+          serialNumber: row.order_no,
+          partyName: row.party_name,
+          erpDoNo: row.erp_do_no,
+          transporterName: row.transporter_name,
+          lrNumber: row.lr_number,
+          vehicleNumber: row.vehicle_number,
+          deliveryTerm: row.delivery_term,
+          brandName: row.brand_name,
+          dispatchQty: row.dispatch_qty,
+          planned1: row.planned1,
+          actual1: row.actual1,
         }));
 
-        // Filter data based on your conditions
         const pending = allData.filter(
           (item) => item.planned1 && !item.actual1
         );
@@ -114,23 +113,6 @@ const GateIn = () => {
     setCurrentItem(null);
   };
 
-  function getFormattedDateTime() {
-    const now = new Date();
-
-    const pad = (num) => num.toString().padStart(2, "0");
-
-    const day = pad(now.getDate());
-    const month = pad(now.getMonth() + 1); // Months are 0-based
-    const year = now.getFullYear();
-
-    const hours = pad(now.getHours());
-    const minutes = pad(now.getMinutes());
-    const seconds = pad(now.getSeconds());
-
-    // Return with space that might get encoded as +
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-  }
-
   const handleSubmitGateIn = async (id) => {
     const gateInDateTime = gateInTimes[id];
     if (!gateInDateTime) {
@@ -138,36 +120,25 @@ const GateIn = () => {
       return;
     }
 
-    setIsSubmitting(true); // Start loading
-
-    const currentDateTime = getFormattedDateTime();
-    console.log("currentDateTime", currentDateTime);
+    setIsSubmitting(true);
 
     try {
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-            sheetName: "ORDER-INVOICE",
-            action: "update",
-            rowIndex: (id + 6).toString(),
-            columnData: JSON.stringify({
-              L: currentDateTime,
-              N: gateInDateTime,
-            }),
-          }).toString(),
-        }
-      );
+      const { error } = await supabase
+        .from('order_invoice')
+        .update({
+          gate_in_date_and_time: gateInDateTime,
+          actual1:new Date().toLocaleString("en-CA", { 
+  timeZone: "Asia/Kolkata", 
+  hour12: false 
+}).replace(',', ''), 
+// planned2:new Date().toLocaleString("en-CA", { 
+//   timeZone: "Asia/Kolkata", 
+//   hour12: false 
+// }).replace(',', ''),
+        })
+        .eq('id', id);
 
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to update Google Sheet");
-      }
+      if (error) throw error;
 
       toast.success("Gate in updated successfully!");
       fetchData();
@@ -176,60 +147,60 @@ const GateIn = () => {
       console.error("Error updating gate in:", error);
       toast.error("Failed to update gate in");
     } finally {
-      setIsSubmitting(false); // Stop loading regardless of success/failure
+      setIsSubmitting(false);
     }
   };
 
-const filteredPendingData = pendingData
-  .filter((item) => {
-    const partyName = item?.partyName ? String(item.partyName).toLowerCase() : "";
-    const erpDoNo = item?.erpDoNo ? String(item.erpDoNo).toLowerCase() : "";
-    const matchesSearch =
-      partyName.includes(searchTerm.toLowerCase()) ||
-      erpDoNo.includes(searchTerm.toLowerCase());
-    const matchesParty =
-      filterParty === "all" || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  })
-  .reverse();
+  const filteredPendingData = pendingData
+    .filter((item) => {
+      const partyName = item?.partyName ? String(item.partyName).toLowerCase() : "";
+      const erpDoNo = item?.erpDoNo ? String(item.erpDoNo).toLowerCase() : "";
+      const matchesSearch =
+        partyName.includes(searchTerm.toLowerCase()) ||
+        erpDoNo.includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .reverse();
 
-const filteredHistoryData = historyData
-  .filter((item) => {
-    const partyName = item?.partyName ? String(item.partyName).toLowerCase() : "";
-    const erpDoNo = item?.erpDoNo ? String(item.erpDoNo).toLowerCase() : "";
-    const matchesSearch =
-      partyName.includes(searchTerm.toLowerCase()) ||
-      erpDoNo.includes(searchTerm.toLowerCase());
-    const matchesParty =
-      filterParty === "all" || item.partyName === filterParty;
-    return matchesSearch && matchesParty;
-  })
-  .reverse();
+  const filteredHistoryData = historyData
+    .filter((item) => {
+      const partyName = item?.partyName ? String(item.partyName).toLowerCase() : "";
+      const erpDoNo = item?.erpDoNo ? String(item.erpDoNo).toLowerCase() : "";
+      const matchesSearch =
+        partyName.includes(searchTerm.toLowerCase()) ||
+        erpDoNo.includes(searchTerm.toLowerCase());
+      const matchesParty =
+        filterParty === "all" || item.partyName === filterParty;
+      return matchesSearch && matchesParty;
+    })
+    .reverse();
 
   // Helper function to render table headers conditionally
   const renderTableHeader = (isPending = true) => {
     const headers = [
       { key: 'action', label: 'Action', show: isPending },
-      { key: 'serialNumber', label: 'Serial Number' },
+      { key: 'serialNumber', label: 'Serial No.' },
       { key: 'partyName', label: 'Party Name' },
       { key: 'erpDoNo', label: 'ERP DO No.' },
-      { key: 'transporterName', label: 'Transporter Name' },
+      { key: 'transporterName', label: 'Transporter' },
       { key: 'lrNumber', label: 'LR Number' },
-      { key: 'vehicleNumber', label: 'Vehicle Number' },
+      { key: 'vehicleNumber', label: 'Vehicle No.' },
       { key: 'deliveryTerm', label: 'Delivery Term' },
-      { key: 'brandName', label: 'Brand Name' },
+      { key: 'brandName', label: 'Brand' },
       { key: 'dispatchQty', label: 'Dispatch Qty' }
     ];
 
     if (!isPending) {
-      headers.splice(0, 1); // Remove action column for history
-      headers.splice(1, 0, { key: 'actual1', label: 'Gate In Date&Time' }); // Add date column for history
+      headers.splice(0, 1);
+      headers.splice(1, 0, { key: 'actual1', label: 'Gate In Time' });
     }
 
     return headers
       .filter(header => visibleColumns.includes(header.key) || header.show)
       .map(header => (
-        <th key={header.key} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+        <th key={header.key} className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
           {header.label}
         </th>
       ));
@@ -238,14 +209,18 @@ const filteredHistoryData = historyData
   // Helper function to render table cells conditionally
   const renderTableCell = (item, isPending = true) => {
     const cells = [
-      { key: 'action', content: (
-        <button
-          onClick={() => handleOpenModal(item)}
-          className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
-        >
-          Gate In
-        </button>
-      ), show: isPending },
+      { 
+        key: 'action', 
+        content: (
+          <button
+            onClick={() => handleOpenModal(item)}
+            className="px-3 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm whitespace-nowrap w-full sm:w-auto"
+          >
+            Gate In
+          </button>
+        ), 
+        show: isPending 
+      },
       { key: 'serialNumber', content: item.serialNumber },
       { key: 'partyName', content: item.partyName },
       { key: 'erpDoNo', content: item.erpDoNo },
@@ -258,23 +233,112 @@ const filteredHistoryData = historyData
     ];
 
     if (!isPending) {
-      cells.splice(0, 1); // Remove action column for history
+      cells.splice(0, 1);
       cells.splice(1, 0, { 
         key: 'actual1', 
         content: item.actual1 ? new Date(item.actual1).toLocaleString() : "-"
-      }); // Add date column for history
+      });
     }
 
     return cells
       .filter(cell => visibleColumns.includes(cell.key) || cell.show)
       .map(cell => (
-        <td key={cell.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-          {cell.content}
+        <td key={cell.key} className="px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+          <div className="truncate max-w-[120px] sm:max-w-none">
+            {cell.content}
+          </div>
         </td>
       ));
   };
 
-  // Add a ref for the dropdown and state for dropdown visibility
+  // Improved mobile card rendering function with better layout
+  const renderMobileCard = (item, isPending = true) => {
+    const visibleFields = [
+      { key: 'serialNumber', label: 'Serial No', value: item.serialNumber },
+      { key: 'erpDoNo', label: 'ERP DO No', value: item.erpDoNo },
+      { key: 'transporterName', label: 'Transporter', value: item.transporterName, icon: Truck },
+      { key: 'lrNumber', label: 'LR Number', value: item.lrNumber },
+      { key: 'vehicleNumber', label: 'Vehicle No', value: item.vehicleNumber },
+      { key: 'deliveryTerm', label: 'Delivery Term', value: item.deliveryTerm },
+      { key: 'brandName', label: 'Brand', value: item.brandName, icon: Package },
+      { key: 'dispatchQty', label: 'Dispatch Qty', value: item.dispatchQty }
+    ].filter(field => visibleColumns.includes(field.key));
+
+    if (!isPending) {
+      visibleFields.splice(1, 0, {
+        key: 'actual1',
+        label: 'Gate In Time',
+        value: item.actual1 ? new Date(item.actual1).toLocaleString() : "-",
+        icon: Calendar
+      });
+    }
+
+    return (
+      <div key={item.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 mb-3">
+        {/* Header Section */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                #{item.serialNumber}
+              </span>
+              {!isPending && item.actual1 && (
+                <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded flex items-center">
+                  <CheckCircle size={12} className="mr-1" />
+                  Completed
+                </span>
+              )}
+            </div>
+            <h3 className="font-semibold text-gray-900 text-base mb-1">{item.partyName}</h3>
+            <p className="text-sm text-gray-600">ERP: {item.erpDoNo}</p>
+          </div>
+          {isPending && (
+            <button
+              onClick={() => handleOpenModal(item)}
+              className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium whitespace-nowrap flex-shrink-0 shadow-sm"
+            >
+              Gate In
+            </button>
+          )}
+        </div>
+
+        {/* Details Grid - Improved layout with proper label-value arrangement */}
+        <div className="space-y-3">
+          {visibleFields.map((field) => {
+            const IconComponent = field.icon;
+            return (
+              <div key={field.key} className="flex items-start">
+                <div className="flex items-center space-x-2 text-gray-600 min-w-[120px] flex-shrink-0">
+                  {IconComponent && <IconComponent size={16} className="text-gray-400 flex-shrink-0" />}
+                  <span className="text-sm font-medium">{field.label}:</span>
+                </div>
+                <span className="text-gray-900 text-sm ml-2 break-words flex-1">
+                  {field.value || '-'}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Additional info for history items */}
+        {!isPending && item.actual1 && (
+          <div className="mt-4 pt-3 border-t border-gray-200">
+            <div className="flex items-center">
+              <div className="flex items-center space-x-2 text-gray-600 min-w-[120px] flex-shrink-0">
+                <Calendar size={16} className="text-gray-400" />
+                <span className="text-sm font-medium">Gate In Time:</span>
+              </div>
+              <span className="text-gray-900 text-sm ml-2 break-words flex-1">
+                {item.actual1 ? new Date(item.actual1).toLocaleString() : "-"}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Add a ref for the dropdown
   const dropdownRef = useRef(null);
   const [isColumnDropdownOpen, setIsColumnDropdownOpen] = useState(false);
 
@@ -291,25 +355,29 @@ const filteredHistoryData = historyData
     };
   }, []);
 
-  // ... (keep all other existing functions)
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 p-4">
       {/* Modal */}
       {isModalOpen && currentItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-            <div className="bg-indigo-600 p-4 text-white">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto">
+            <div className="bg-indigo-600 p-4 text-white flex justify-between items-center">
               <h2 className="text-xl font-bold">Gate In Details</h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-white hover:text-gray-200"
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Serial No
                   </label>
-                  <p className="mt-1 text-sm font-medium">
+                  <p className="mt-1 text-sm font-medium truncate">
                     {currentItem.serialNumber}
                   </p>
                 </div>
@@ -318,7 +386,7 @@ const filteredHistoryData = historyData
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Party Name
                   </label>
-                  <p className="mt-1 text-sm font-medium">
+                  <p className="mt-1 text-sm font-medium truncate">
                     {currentItem.partyName}
                   </p>
                 </div>
@@ -327,7 +395,7 @@ const filteredHistoryData = historyData
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Transporter
                   </label>
-                  <p className="mt-1 text-sm font-medium">
+                  <p className="mt-1 text-sm font-medium truncate">
                     {currentItem.transporterName}
                   </p>
                 </div>
@@ -336,7 +404,7 @@ const filteredHistoryData = historyData
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Delivery Term
                   </label>
-                  <p className="mt-1 text-sm font-medium">
+                  <p className="mt-1 text-sm font-medium truncate">
                     {currentItem.deliveryTerm}
                   </p>
                 </div>
@@ -345,7 +413,7 @@ const filteredHistoryData = historyData
                   <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Brand
                   </label>
-                  <p className="mt-1 text-sm font-medium">
+                  <p className="mt-1 text-sm font-medium truncate">
                     {currentItem.brandName}
                   </p>
                 </div>
@@ -360,9 +428,9 @@ const filteredHistoryData = historyData
                 </div>
               </div>
 
-              <div className="pt-4">
+              <div className="pt-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Gate In Date & Time
+                  Gate In Date & Time *
                 </label>
                 <input
                   type="datetime-local"
@@ -371,20 +439,22 @@ const filteredHistoryData = historyData
                     handleGateInTimeChange(currentItem.id, e.target.value)
                   }
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
                 />
               </div>
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+            <div className="bg-gray-50 px-4 py-3 flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-100 transition-colors w-full sm:w-auto"
+                disabled={isSubmitting}
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleSubmitGateIn(currentItem.id)}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[120px] w-full sm:w-auto"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -420,11 +490,12 @@ const filteredHistoryData = historyData
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
         <h1 className="text-2xl font-bold text-gray-800">Gate IN</h1>
         <button
           onClick={fetchData}
-          className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          className="hidden sm:inline-flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           disabled={loading}
         >
           <RefreshCw
@@ -436,44 +507,48 @@ const filteredHistoryData = historyData
       </div>
 
       {/* Filter and Search */}
-      <div className="bg-white p-4 rounded-lg shadow flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
-        <div className="flex flex-1 max-w-md">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="Search by party name or DO number..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search
-              size={20}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            />
-          </div>
+      <div className="bg-white p-4 rounded-lg shadow space-y-4">
+        {/* Search Input */}
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by party name or DO number..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <Search
+            size={20}
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+          />
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Filter size={16} className="text-gray-500" />
-          <select
-            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            value={filterParty}
-            onChange={(e) => setFilterParty(e.target.value)}
-          >
-            <option value="all">All Parties</option>
-            {uniqueParties.map((party) => (
-              <option key={party} value={party}>
-                {party}
-              </option>
-            ))}
-          </select>
+        {/* Filter Controls - Improved side-by-side layout */}
+        <div className="flex flex-row gap-2">
+          {/* Party Filter */}
+          <div className="flex-1 relative">
+            <Filter size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 z-10" />
+            <select
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
+              value={filterParty}
+              onChange={(e) => setFilterParty(e.target.value)}
+            >
+              <option value="all">All Parties</option>
+              {uniqueParties.map((party) => (
+                <option key={party} value={party}>
+                  {party}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Updated Column Filter Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          {/* Column Filter Dropdown */}
+          <div className="relative flex-1" ref={dropdownRef}>
             <button
               onClick={() => setIsColumnDropdownOpen(!isColumnDropdownOpen)}
-              className="flex items-center justify-between border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[120px]"
+              className="flex items-center justify-center w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
             >
+              <Columns size={16} className="mr-2" />
               <span>Columns</span>
               <svg
                 className={`ml-2 h-4 w-4 transition-transform ${isColumnDropdownOpen ? 'rotate-180' : ''}`}
@@ -490,7 +565,7 @@ const filteredHistoryData = historyData
             </button>
 
             {isColumnDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg z-10 border border-gray-200 max-h-60 overflow-y-auto">
                 <div className="p-2">
                   {columnOptions.map((column) => (
                     <div
@@ -514,11 +589,12 @@ const filteredHistoryData = historyData
         </div>
       </div>
 
-     <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="border-b border-gray-200">
-          <nav className="flex -mb-px">
+      {/* Tabs and Content */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="border-b border-gray-200 overflow-x-auto">
+          <nav className="flex min-w-max">
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+              className={`py-4 px-4 sm:px-6 font-medium text-sm border-b-2 whitespace-nowrap ${
                 activeTab === "pending"
                   ? "border-indigo-500 text-indigo-600"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -529,7 +605,7 @@ const filteredHistoryData = historyData
               Pending ({filteredPendingData.length})
             </button>
             <button
-              className={`py-4 px-6 font-medium text-sm border-b-2 ${
+              className={`py-4 px-4 sm:px-6 font-medium text-sm border-b-2 whitespace-nowrap ${
                 activeTab === "history"
                   ? "border-indigo-500 text-indigo-600"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
@@ -543,7 +619,7 @@ const filteredHistoryData = historyData
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -552,55 +628,85 @@ const filteredHistoryData = historyData
           ) : (
             <>
               {activeTab === "pending" && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {renderTableHeader(true)}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredPendingData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          {renderTableCell(item, true)}
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {renderTableHeader(true)}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredPendingData.length === 0 && (
-                    <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">
-                        No pending gate in records found.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredPendingData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            {renderTableCell(item, true)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredPendingData.length === 0 && (
+                      <div className="px-6 py-12 text-center">
+                        <p className="text-gray-500">
+                          No pending gate in records found.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="sm:hidden space-y-3">
+                    {filteredPendingData.map((item) => renderMobileCard(item, true))}
+                    {filteredPendingData.length === 0 && (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">
+                          No pending gate in records found.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               {activeTab === "history" && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {renderTableHeader(false)}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredHistoryData.map((item) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          {renderTableCell(item, false)}
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {renderTableHeader(false)}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {filteredHistoryData.length === 0 && (
-                    <div className="px-6 py-12 text-center">
-                      <p className="text-gray-500">
-                        No historical gate in records found.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {filteredHistoryData.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            {renderTableCell(item, false)}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredHistoryData.length === 0 && (
+                      <div className="px-6 py-12 text-center">
+                        <p className="text-gray-500">
+                          No historical gate in records found.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="sm:hidden space-y-3">
+                    {filteredHistoryData.map((item) => renderMobileCard(item, false))}
+                    {filteredHistoryData.length === 0 && (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">
+                          No historical gate in records found.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </>
           )}

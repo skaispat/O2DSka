@@ -17,6 +17,8 @@ import useAuthStore from "../store/authStore";
 import toast from "react-hot-toast";
 import { Select } from "antd";
 import CustomSelect from "../utils/CustomSelect";
+import supabase from "../SupabaseClient";
+
 const MakeInvoice = () => {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState("pending");
@@ -37,7 +39,7 @@ const MakeInvoice = () => {
   const [globalBrokerName, setGlobalBrokerName] = useState("");
   const [globalFilteredRates, setGlobalFilteredRates] = useState([]);
   const [invoiceData, setInvoiceData] = useState([]);
-  const [filteredHistoryDatas, setFilteredHistoryData] = useState([]);
+  const [filteredHistoryData, setFilteredHistoryData] = useState([]);
   const [selectedColumns, setSelectedColumns] = useState([
     "serialNumber",
     "vehicleNumber",
@@ -50,6 +52,29 @@ const MakeInvoice = () => {
     "dispatchQty",
     "planned7",
     "qcPDF",
+  ]);
+
+  // Add selected columns for history
+  const [selectedHistoryColumns, setSelectedHistoryColumns] = useState([
+    "invoice_no",
+    "order_number", 
+    "party_name",
+    "sauda_no",
+    "do_no",
+    "bill_date",
+    "bill_no",
+    "bill_image",
+    "delivery_term",
+    "transporter_name",
+    "vehicle_no",
+    "lt_number",
+    "bill_status",
+    "size",
+    "section",
+    "qty",
+    "rate",
+    "customer_discount",
+    "udam_vidian",
   ]);
 
   // Broker dropdown states
@@ -138,33 +163,41 @@ const MakeInvoice = () => {
       { id: "qcPDF", label: "QC PDF" },
     ],
     history: [
-      { id: "invoiceNumber", label: "Invoice No" },
-      { id: "orderNumber", label: "Order Number" },
-      { id: "partyName", label: "Party Name" },
-      { id: "saudaNumber", label: "Sauda No" },
-      { id: "doNo", label: "Do No" },
-      { id: "billDate", label: "Bill Date" },
-      { id: "billNO", label: "Bill No" },
-      { id: "billImage", label: "Bill Image" },
-      { id: "deliveryTerm", label: "Delivery Term" },
-      { id: "transpoterName", label: "Transporter Name" },
-      { id: "vehicalNo", label: "Vehicle No" },
-      { id: "biltyNo", label: "Bilty No" },
-      { id: "billStatus", label: "Bill Status" },
+      { id: "invoice_no", label: "Invoice No" },
+      { id: "order_number", label: "Order Number" },
+      { id: "party_name", label: "Party Name" },
+      { id: "sauda_no", label: "Sauda No" },
+      { id: "do_no", label: "Do No" },
+      { id: "bill_date", label: "Bill Date" },
+      { id: "bill_no", label: "Bill No" },
+      { id: "bill_image", label: "Bill Image" },
+      { id: "delivery_term", label: "Delivery Term" },
+      { id: "transporter_name", label: "Transporter Name" },
+      { id: "vehicle_no", label: "Vehicle No" },
+      { id: "lt_number", label: "Bilty No" },
+      { id: "bill_status", label: "Bill Status" },
       { id: "size", label: "Size" },
       { id: "section", label: "Section" },
       { id: "qty", label: "Qty" },
       { id: "rate", label: "Rate" },
-      { id: "cashDescount", label: "Cash Discount" },
-      { id: "udaan_vidhan", label: "Udaan/Vidhan" },
+      { id: "customer_discount", label: "Cash Discount" },
+      { id: "udam_vidian", label: "Udaan/Vidhan" },
     ],
   };
 
   const toggleColumn = (columnId) => {
-    if (selectedColumns.includes(columnId)) {
-      setSelectedColumns(selectedColumns.filter((col) => col !== columnId));
+    if (activeTab === "pending") {
+      if (selectedColumns.includes(columnId)) {
+        setSelectedColumns(selectedColumns.filter((col) => col !== columnId));
+      } else {
+        setSelectedColumns([...selectedColumns, columnId]);
+      }
     } else {
-      setSelectedColumns([...selectedColumns, columnId]);
+      if (selectedHistoryColumns.includes(columnId)) {
+        setSelectedHistoryColumns(selectedHistoryColumns.filter((col) => col !== columnId));
+      } else {
+        setSelectedHistoryColumns([...selectedHistoryColumns, columnId]);
+      }
     }
   };
 
@@ -204,64 +237,67 @@ const MakeInvoice = () => {
 
   const fetchInvoiceData = async () => {
     try {
-      const timestamp = new Date().getTime();
-      const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=INVOICE-DELIVERY&timestamp=${timestamp}`
-      );
-      const json = await response.json();
-      if (json.success && Array.isArray(json.data)) {
-        const dataRows = json.data.slice(6).filter((row) => row.length > 0);
+      const { data, error } = await supabase
+        .from('invoice_delivery')
+        .select('invoice_no')
+        .order('timestamp', { ascending: true });
 
-        const transformedData = dataRows.map((row, index) => ({
+      if (error) throw error;
+
+      if (data) {
+        const transformedData = data.map((row, index) => ({
           id: index + 1,
-          invoiceNumber: row[1] || "",
+          invoiceNumber: row.invoice_no || "",
         }));
 
         setInvoiceData(transformedData);
       }
     } catch (error) {
       console.error("Error fetching invoice data:", error);
+      toast.error("Failed to load invoice data");
     }
   };
 
   const fetchDataforHistory = async () => {
     setLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=INVOICE-DELIVERY&timestamp=${timestamp}`
-      );
-      const json = await response.json();
-      if (json.success && Array.isArray(json.data)) {
-        const allData = json.data.slice(6).map((row, index) => ({
-          id: index + 1,
-          invoiceNumber: row[1],
-          orderNumber: row[2],
-          partyName: row[3],
-          saudaNumber: row[4],
-          doNo: row[5],
-          billDate: row[6],
-          billNO: row[7],
-          billImage: row[8],
-          deliveryTerm: row[9],
-          transpoterName: row[10],
-          vehicalNo: row[11],
-          biltyNo: row[12],
-          billStatus: row[13],
-          size: row[14],
-          section: row[15],
-          qty: row[16],
-          rate: row[17],
-          cashDescount: row[18],
-          udaan_vidhan: row[19],
+      const { data, error } = await supabase
+        .from('invoice_delivery')
+        .select('*')
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        const allData = data.map((row, index) => ({
+          id: row.id || index + 1,
+          invoice_no: row.invoice_no,
+          order_number: row.order_number,
+          party_name: row.party_name,
+          sauda_no: row.sauda_no,
+          do_no: row.do_no,
+          bill_date: row.bill_date,
+          bill_no: row.bill_no,
+          bill_image: row.bill_image,
+          delivery_term: row.delivery_term,
+          transporter_name: row.transporter_name,
+          vehicle_no: row.vehicle_no,
+          lt_number: row.lt_number,
+          bill_status: row.bill_status,
+          size: row.size,
+          section: row.section,
+          qty: row.qty,
+          rate: row.rate,
+          customer_discount: row.customer_discount,
+          udam_vidian: row.udam_vidian,
         }));
 
-        // console.log("allData", allData);
+        console.log("History data fetched:", allData);
         setFilteredHistoryData(allData);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
+      console.error("Error fetching history data:", error);
+      toast.error("Failed to load history data");
     } finally {
       setLoading(false);
     }
@@ -270,38 +306,40 @@ const MakeInvoice = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const timestamp = new Date().getTime();
-      const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
-      );
-      const json = await response.json();
-      if (json.success && Array.isArray(json.data)) {
-        const allData = json.data.slice(6).map((row, index) => ({
-          id: index + 1,
-          serialNumber: row[1],
-          partyName: row[2],
-          erpDoNo: row[3],
-          transporterName: row[4],
-          lrNumber: row[5],
-          vehicleNumber: row[6],
-          deliveryTerm: row[7],
-          brandName: row[8],
-          dispatchQty: row[9],
-          qcPDF: row[40],
-          planned7: row[41],
-          actual7: row[42],
-          billDate: row[45],
-          billNo: row[46],
-          billImage: row[47],
-          size: row[48],
-          section: row[49],
-          qty: row[50],
-          rate: row[51],
-          cashDiscount: row[52],
-          saudaNo: row[53],
-          brokerName: row[54],
-          billStatus: row[55],
-          pdf: row[40],
+      const { data, error } = await supabase
+        .from('order_invoice')
+        .select('*')
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        const allData = data.map((row, index) => ({
+          id: row.id || index + 1,
+          serialNumber: row.order_no || row.serialNumber,
+          partyName: row.party_name || row.partyName,
+          erpDoNo: row.erp_do_no || row.erpDoNo,
+          transporterName: row.transporter_name || row.transporterName,
+          lrNumber: row.lr_number || row.lrNumber,
+          vehicleNumber: row.vehicle_number || row.vehicleNumber,
+          deliveryTerm: row.delivery_term || row.deliveryTerm,
+          brandName: row.brand_name || row.brandName,
+          dispatchQty: row.dispatch_qty || row.dispatchQty,
+          qcPDF: row.pdf || row.qcPDF,
+          planned7: row.planned7 || row.planned_date_7,
+          actual7: row.actual7 || row.actual_date_7,
+          billDate: row.bill_date || row.billDate,
+          billNo: row.bill_no || row.billNo,
+          billImage: row.bill_image || row.billImage,
+          size: row.size,
+          section: row.section,
+          qty: row.qty,
+          rate: row.rate,
+          cashDiscount: row.cash_discount || row.cashDiscount,
+          saudaNo: row.sauda_no || row.saudaNo,
+          brokerName: row.broker_name || row.brokerName,
+          billStatus: row.bill_status || row.billStatus,
+          pdf: row.pdf || row.pdf_url,
         }));
 
         const pending = allData.filter(
@@ -333,164 +371,71 @@ const MakeInvoice = () => {
 
   const fetchDropdownData = async () => {
     try {
-      // Fixed broker API call with proper sheet parameter
-      const brokerResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=SaudaForm`
-      );
-      const brokerJson = await brokerResponse.json();
+      // Fetch broker data from Supabase
+      const { data: brokerData, error: brokerError } = await supabase
+        .from('saudaform')
+        .select('broker_name, rate, sauda_number, order_status')
+        .order('timestamp', { ascending: true });
 
-      if (brokerJson.success && Array.isArray(brokerJson.data)) {
-        const saudaData = brokerJson.data;
-        // console.log("SaudaForm data:", saudaData);
+      if (brokerError) {
+        console.error("Error fetching broker data:", brokerError);
+        throw brokerError;
+      }
 
-        // Find the header row - look for "Broker Name" column
-        let headerRowIndex = -1;
-        let brokerNameIndex = -1;
-        let rateIndex = -1;
-        let saudaNoIndex = -1;
-        let orderStatusIndex = -1;
-
-        // Search for headers in the first few rows
-        for (let i = 0; i < Math.min(10, saudaData.length); i++) {
-          if (saudaData[i] && Array.isArray(saudaData[i])) {
-            const row = saudaData[i];
-
-            // Check if this row contains the headers we're looking for
-            for (let j = 0; j < row.length; j++) {
-              const cellValue = row[j]?.toString().toLowerCase().trim();
-
-              if (
-                cellValue.includes("broker name") ||
-                cellValue === "broker name"
-              ) {
-                headerRowIndex = i;
-                brokerNameIndex = j;
-              }
-              if (cellValue.includes("rate")) {
-                rateIndex = j;
-              }
-              if (
-                cellValue.includes("sauda no") ||
-                cellValue.includes("sauda number")
-              ) {
-                saudaNoIndex = j;
-              }
-              if (
-                cellValue.includes("order status") ||
-                cellValue.includes("status")
-              ) {
-                orderStatusIndex = j;
-              }
-            }
-
-            // If we found broker name, break
-            if (brokerNameIndex !== -1) break;
-          }
-        }
-
-        // console.log("Header found at row:", headerRowIndex);
-        // console.log("Broker Name column:", brokerNameIndex);
-        // console.log("Rate column:", rateIndex);
-        // console.log("Sauda No column:", saudaNoIndex);
-        // console.log("Order Status column:", orderStatusIndex);
-
-        if (headerRowIndex === -1 || brokerNameIndex === -1) {
-          console.error("Could not find Broker Name column in SaudaForm sheet");
-          // Fallback: assume broker name is in column D (index 3)
-          brokerNameIndex = 3;
-          headerRowIndex = 0;
-          // console.log("Using fallback: Broker Name in column D");
-        }
-
-        // Set fallbacks for other columns if not found
-        if (rateIndex === -1) rateIndex = 6; // Column G
-        if (saudaNoIndex === -1) saudaNoIndex = 1; // Column B
-        if (orderStatusIndex === -1) orderStatusIndex = 8; // Fallback column
-
-        // Process data starting from the row after headers
-        const dataStartRow = headerRowIndex + 1;
-        const dataRows = saudaData.slice(dataStartRow);
-
-        // Extract broker names (only from pending records if Order Status exists)
+      if (brokerData) {
         let brokerNames = [];
         const mapping = {};
 
-        dataRows.forEach((row) => {
-          if (row && Array.isArray(row) && row.length > brokerNameIndex) {
-            const broker = row[brokerNameIndex]?.toString().trim();
-            const rate = row[rateIndex]?.toString().trim();
-            const saudaNo = row[saudaNoIndex]?.toString().trim();
-            const orderStatus = row[orderStatusIndex]?.toString().trim();
+        brokerData.forEach((row) => {
+          const broker = row.broker_name?.toString().trim();
+          const rate = row.rate?.toString().trim();
+          const saudaNo = row.sauda_number?.toString().trim();
+          const orderStatus = row.order_status?.toString().trim();
 
-            if (broker) {
-              // If Order Status column exists, only include pending records
-              if (orderStatusIndex !== -1 && orderStatus) {
-                if (orderStatus.toLowerCase() === "pending") {
-                  brokerNames.push(broker);
+          if (broker) {
+            if (orderStatus && orderStatus.toLowerCase() === "pending") {
+              brokerNames.push(broker);
 
-                  if (rate) {
-                    if (!mapping[broker]) {
-                      mapping[broker] = [];
-                    }
-                    mapping[broker].push({ rate, saudaNo: saudaNo || "" });
-                  }
+              if (rate) {
+                if (!mapping[broker]) {
+                  mapping[broker] = [];
                 }
-              } else {
-                // If no Order Status column, include all records
-                brokerNames.push(broker);
-
-                if (rate) {
-                  if (!mapping[broker]) {
-                    mapping[broker] = [];
-                  }
-                  mapping[broker].push({ rate, saudaNo: saudaNo || "" });
-                }
+                mapping[broker].push({ rate, saudaNo: saudaNo || "" });
               }
             }
           }
         });
 
-        // Remove duplicates and filter empty values
         const uniqueBrokers = [...new Set(brokerNames)].filter(
           (b) => b && b.trim() !== ""
         );
 
-        // console.log("Extracted brokers:", uniqueBrokers);
-        // console.log("Broker rate mapping:", mapping);
-
         setBrokerNames(uniqueBrokers);
         setBrokerRateMap(mapping);
-      } else {
-        console.error("Invalid response from SaudaForm sheet:", brokerJson);
       }
 
-      // Rest of your existing code for size and status fetching remains the same...
-      const sizeResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=Main Master&id=1blHC_0TZh9AuZMptHHB-mPfOi8TqGAvLIgxKhlQHva8`
-      );
-      const sizeJson = await sizeResponse.json();
-      if (sizeJson.success) {
-        const uniqueSizes = [
-          ...new Set(sizeJson.data.slice(1).map((row) => row[2])),
-        ];
+      // Fetch size and section data from Supabase
+      const { data: masterData, error: masterError } = await supabase
+        .from('dropdown')
+        .select('size, section, bill_status')
+        .order('created_at', { ascending: true });
+
+      if (masterError) {
+        console.error("Error fetching master data:", masterError);
+        throw masterError;
+      }
+
+      if (masterData) {
+        const uniqueSizes = [...new Set(masterData.map((row) => row.size))];
         setSizes(uniqueSizes.filter((s) => s));
 
-        const uniqueSections = [
-          ...new Set(sizeJson.data.slice(1).map((row) => row[4])),
-        ];
+        const uniqueSections = [...new Set(masterData.map((row) => row.section))];
         setSections(uniqueSections.filter((s) => s));
-      }
 
-      const statusResponse = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=Main Master&id=1blHC_0TZh9AuZMptHHB-mPfOi8TqGAvLIgxKhlQHva8`
-      );
-      const statusJson = await statusResponse.json();
-      if (statusJson.success) {
-        const uniqueStatuses = [
-          ...new Set(statusJson.data.slice(1).map((row) => row[3])),
-        ];
+        const uniqueStatuses = [...new Set(masterData.map((row) => row.bill_status))];
         setBillStatuses(uniqueStatuses.filter((s) => s));
       }
+
     } catch (error) {
       console.error("Error fetching dropdown data:", error);
       toast.error("Failed to load dropdown data");
@@ -528,13 +473,10 @@ const MakeInvoice = () => {
         return null;
       }
 
-      // console.log("Original URL:", url);
-
       if (
         url.includes("drive.google.com/file/d/") &&
         (url.includes("/view") || url.includes("/preview"))
       ) {
-        console.log("Already proper drive URL:", url);
         return url;
       }
 
@@ -543,28 +485,22 @@ const MakeInvoice = () => {
       const fileIdMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
       if (fileIdMatch) {
         fileId = fileIdMatch[1];
-        // console.log("Extracted file ID from standard format:", fileId);
       } else if (url.includes("open?id=")) {
         try {
           const urlObj = new URL(url);
           fileId = urlObj.searchParams.get("id");
-          // console.log("Extracted file ID from open format:", fileId);
         } catch (urlError) {
           console.error("Error parsing open URL:", urlError);
         }
       } else if (url.match(/^[a-zA-Z0-9_-]{25,}$/)) {
         fileId = url;
-        // console.log("URL appears to be direct file ID:", fileId);
       }
 
       if (!fileId) {
-        // console.warn("Could not extract file ID from URL:", url);
         return url;
       }
 
-      const viewerUrl = `https://drive.google.com/file/d/${fileId}/view`;
-      // console.log("Generated viewer URL:", viewerUrl);
-      return viewerUrl;
+      return `https://drive.google.com/file/d/${fileId}/view`;
     } catch (e) {
       console.error("Error parsing Drive URL:", e);
       return url;
@@ -574,7 +510,7 @@ const MakeInvoice = () => {
   // Handle global broker change
   const handleGlobalBrokerChange = (broker) => {
     setGlobalBrokerName(broker);
-    setBrokerSearch(""); // Clear search after selection
+    setBrokerSearch("");
     setShowBrokerDropdown(false);
     const filteredRates =
       broker && brokerRateMap[broker] ? brokerRateMap[broker] : [];
@@ -601,7 +537,7 @@ const MakeInvoice = () => {
           return {
             ...row,
             rate: selectedRate,
-            saudaNo: foundRate ? foundRate.saudaNo : "", // This autofills Sauda No.
+            saudaNo: foundRate ? foundRate.saudaNo : "",
           };
         }
         return row;
@@ -655,7 +591,7 @@ const MakeInvoice = () => {
 
     const brokerName = item.brokerName || "";
     setGlobalBrokerName(brokerName);
-    setBrokerSearch(""); // Clear search when opening modal
+    setBrokerSearch("");
     const filteredRates =
       brokerName && brokerRateMap[brokerName] ? brokerRateMap[brokerName] : [];
     setGlobalFilteredRates(filteredRates);
@@ -726,31 +662,6 @@ const MakeInvoice = () => {
     }
   };
 
-  const getNextEmptyInvoiceRow = async () => {
-    const response = await fetch(
-      "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          action: "getNextEmptyRow",
-          sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-          sheetName: "INVOICE-DELIVERY",
-          column: "B",
-        }),
-      }
-    );
-
-    const result = await response.json();
-    if (result.success) {
-      return result.rowIndex;
-    } else {
-      throw new Error(result.error);
-    }
-  };
-
   const uploadImageToDrive = async (file) => {
     try {
       const reader = new FileReader();
@@ -766,7 +677,7 @@ const MakeInvoice = () => {
       });
 
       const uploadResponse = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+        "https://script.google.com/macros/s/AKfycbyyMQjRx0hc36Wfgu5cKgNHBxRE90sDDnRQPJeWoOacZfxZ9KVn-Sgb_tXWkQ0PbkWm/exec",
         {
           method: "POST",
           headers: {
@@ -797,17 +708,36 @@ const MakeInvoice = () => {
     }
   };
 
-  function getFormattedDateTime() {
-    const now = new Date();
+  const generateInvoiceNumber = async () => {
+    try {
+      // Get the latest invoice number from Supabase
+      const { data, error } = await supabase
+        .from('invoice_delivery')
+        .select('invoice_no')
+        .order('timestamp', { ascending: false })
+        .limit(1);
 
-    const pad = (num) => num.toString().padStart(2, "0");
+      if (error) throw error;
 
-    const day = pad(now.getDate());
-    const month = pad(now.getMonth() + 1);
-    const year = now.getFullYear();
+      let nextNumber = 1;
+      
+      if (data && data.length > 0) {
+        const lastInvoiceNo = data[0].invoice_no;
+        if (lastInvoiceNo && lastInvoiceNo.startsWith('INV-')) {
+          const lastNum = parseInt(lastInvoiceNo.replace('INV-', ''));
+          if (!isNaN(lastNum)) {
+            nextNumber = lastNum + 1;
+          }
+        }
+      }
 
-    return `${day}/${month}/${year}`;
-  }
+      return `INV-${nextNumber.toString().padStart(4, '0')}`;
+    } catch (error) {
+      console.error("Error generating invoice number:", error);
+      // Fallback to timestamp-based number
+      return `INV-${Date.now().toString().slice(-6)}`;
+    }
+  };
 
   const handleSubmitInvoice = async (orderNumber) => {
     if (!formData.billDate || !formData.billNo || !formData.billImage) {
@@ -829,95 +759,70 @@ const MakeInvoice = () => {
         imageUrl = formData.billImage;
       }
 
-      // Use Promise.all to handle both updates concurrently
-      await Promise.all([
-        // Update ORDER-INVOICE sheet
-        fetch(
-          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-              sheetName: "ORDER-INVOICE",
-              action: "update",
-              rowIndex: currentItem.id + 6,
-              columnData: JSON.stringify({
-                C: formData.partyName,
-              }),
-            }),
-          }
-        ).then((response) => response.json()),
+      // Generate invoice number
+      const invoiceNumber = await generateInvoiceNumber();
 
-        // Process all rows for INVOICE-DELIVERY
-        (async () => {
-          for (const row of rows) {
-            // Get the next empty row first
-            const rowIndex = await getNextEmptyInvoiceRow();
+      // Insert all rows into invoice_delivery table
+      const insertPromises = rows.map(async (row) => {
+        const invoiceData = {
+          timestamp:new Date().toLocaleString("en-CA", { 
+  timeZone: "Asia/Kolkata", 
+  hour12: false 
+}).replace(',', ''),
+          // invoice_no: invoiceNumber,
+          order_number: orderNumber,
+          party_name: formData.partyName,
+          sauda_no: row.saudaNo || "",
+          do_no: currentItem.erpDoNo,
+          bill_date: formData.billDate,
+          bill_no: formData.billNo,
+          bill_image: imageUrl,
+          delivery_term: currentItem.deliveryTerm,
+          transporter_name: currentItem.transporterName,
+          vehicle_no: currentItem.vehicleNumber,
+          lr_number: currentItem.lrNumber,
+          bill_status: formData.billStatus,
+          size: row.size || "",
+          section: row.section || "",
+          qty:row.qty||null ,
+          rate: row.rate || "",
+          customer_discount: formData.cashDiscount,
+          udaan_vidhan: formData.udaanVidhan,
+          brand_name:currentItem.brandName,
+            planned1:new Date().toLocaleString("en-CA", { 
+  timeZone: "Asia/Kolkata", 
+  hour12: false 
+}).replace(',', ''),
+        };
 
-            const rowData = [
-              getFormattedDateTime(), // Column A: Timestamp
-              "", // Column B: Will be populated with invoice number by server
-              orderNumber, // Column C: Order Number
-              formData.partyName, // Column D: Party Name
-              row.saudaNo || "", // Column E: Sauda No
-              currentItem.erpDoNo, // Column F: ERP DO No
-              formData.billDate, // Column G: Bill Date
-              formData.billNo, // Column H: Bill No
-              imageUrl, // Column I: Image URL
-              currentItem.deliveryTerm, // Column J: Delivery Term
-              currentItem.transporterName, // Column K: Transporter Name
-              currentItem.vehicleNumber, // Column L: Vehicle Number
-              currentItem.lrNumber, // Column M: LR Number
-              formData.billStatus, // Column N: Bill Status
-              row.size || "", // Column O: Size
-              row.section || "", // Column P: Section
-              row.qty || "", // Column Q: Quantity
-              row.rate || "", // Column R: Rate
-              formData.cashDiscount, // Column S: Cash Discount
-              formData.udaanVidhan, // Column T: Udaan Vidhan
-            ];
+        const { data, error } = await supabase
+          .from('invoice_delivery')
+          .insert([invoiceData]);
 
-            // Use atomic insertWithSN action which handles invoice number generation
-            const updateResponse = await fetch(
-              "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/x-www-form-urlencoded",
-                },
-                body: new URLSearchParams({
-                  sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-                  sheetName: "INVOICE-DELIVERY",
-                  action: "insertWithSN",
-                  rowData: JSON.stringify(rowData),
-                }),
-              }
-            );
+        if (error) throw error;
+        return data;
+      });
 
-            const updateResult = await updateResponse.json();
-            if (!updateResult.success) {
-              throw new Error(
-                updateResult.error || "Failed to update Google Sheet"
-              );
-            }
+      await Promise.all(insertPromises);
 
-            // Log the generated invoice number for reference
-            if (updateResult.generatedSN) {
-              console.log(
-                "Generated Invoice Number:",
-                updateResult.generatedSN
-              );
-            }
-          }
-        })(),
-      ]);
+      // Update order_invoice table
+      const { error: updateError } = await supabase
+        .from('order_invoice')
+        .update({
+          party_name: formData.partyName,
+           actual7:new Date().toLocaleString("en-CA", { 
+  timeZone: "Asia/Kolkata", 
+  hour12: false 
+}).replace(',', ''),
+        })
+        .eq('id', currentItem.id);
+
+      if (updateError) throw updateError;
 
       fetchData();
-      toast.success(`Invoice(s) submitted successfully!`);
+      fetchDataforHistory();
       fetchInvoiceData();
+      toast.success(`Invoice(s) submitted successfully!`);
       handleCloseModal();
     } catch (error) {
       console.error("Error submitting invoice data:", error);
@@ -938,13 +843,13 @@ const MakeInvoice = () => {
     })
     .reverse();
 
-  const filteredHistoryData = filteredHistoryDatas
+  const filteredHistory = filteredHistoryData
     .filter((item) => {
-      const matchesSearch = item.partyName
+      const matchesSearch = item.party_name
         ?.toLowerCase()
         .includes(searchTerm.toLowerCase());
       const matchesParty =
-        filterParty === "all" || item.partyName === filterParty;
+        filterParty === "all" || item.party_name === filterParty;
       return matchesSearch && matchesParty;
     })
     .reverse();
@@ -1014,7 +919,11 @@ const MakeInvoice = () => {
                       <input
                         type="checkbox"
                         id={`column-${column.id}`}
-                        checked={selectedColumns.includes(column.id)}
+                        checked={
+                          activeTab === "pending" 
+                            ? selectedColumns.includes(column.id)
+                            : selectedHistoryColumns.includes(column.id)
+                        }
                         onChange={() => toggleColumn(column.id)}
                         className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
                       />
@@ -1056,7 +965,7 @@ const MakeInvoice = () => {
               onClick={() => setActiveTab("history")}
             >
               <CheckCircle size={16} className="inline mr-2" />
-              History ({filteredHistoryData?.length})
+              History ({filteredHistory?.length})
             </button>
           </nav>
         </div>
@@ -1084,7 +993,7 @@ const MakeInvoice = () => {
                         )}
                         {selectedColumns.includes("vehicleNumber") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Vehical No
+                            Vehicle No
                           </th>
                         )}
                         {selectedColumns.includes("partyName") && (
@@ -1232,97 +1141,97 @@ const MakeInvoice = () => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        {selectedColumns.includes("invoiceNumber") && (
+                        {selectedHistoryColumns.includes("invoice_no") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Invoice No
                           </th>
                         )}
-                        {selectedColumns.includes("orderNumber") && (
+                        {selectedHistoryColumns.includes("order_number") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Order Number
                           </th>
                         )}
-                        {selectedColumns.includes("partyName") && (
+                        {selectedHistoryColumns.includes("party_name") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Party Name
                           </th>
                         )}
-                        {selectedColumns.includes("saudaNumber") && (
+                        {selectedHistoryColumns.includes("sauda_no") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            sauda No
+                            Sauda No
                           </th>
                         )}
-                        {selectedColumns.includes("doNo") && (
+                        {selectedHistoryColumns.includes("do_no") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Do No
                           </th>
                         )}
-                        {selectedColumns.includes("billDate") && (
+                        {selectedHistoryColumns.includes("bill_date") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Bill Date
                           </th>
                         )}
-                        {selectedColumns.includes("billNO") && (
+                        {selectedHistoryColumns.includes("bill_no") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Bill No
                           </th>
                         )}
-                        {selectedColumns.includes("billImage") && (
+                        {selectedHistoryColumns.includes("bill_image") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Bill Image
                           </th>
                         )}
-                        {selectedColumns.includes("deliveryTerm") && (
+                        {selectedHistoryColumns.includes("delivery_term") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Delivery Term
                           </th>
                         )}
-                        {selectedColumns.includes("transpoterName") && (
+                        {selectedHistoryColumns.includes("transporter_name") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Transpoter Name
+                            Transporter Name
                           </th>
                         )}
-                        {selectedColumns.includes("vehicalNo") && (
+                        {selectedHistoryColumns.includes("vehicle_no") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Vehical No
+                            Vehicle No
                           </th>
                         )}
-                        {selectedColumns.includes("biltyNo") && (
+                        {selectedHistoryColumns.includes("lt_number") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Bilty No
                           </th>
                         )}
-                        {selectedColumns.includes("billStatus") && (
+                        {selectedHistoryColumns.includes("bill_status") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Bill Status
                           </th>
                         )}
-                        {selectedColumns.includes("size") && (
+                        {selectedHistoryColumns.includes("size") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Size
                           </th>
                         )}
-                        {selectedColumns.includes("section") && (
+                        {selectedHistoryColumns.includes("section") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Section
                           </th>
                         )}
-                        {selectedColumns.includes("qty") && (
+                        {selectedHistoryColumns.includes("qty") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Qty
                           </th>
                         )}
-                        {selectedColumns.includes("rate") && (
+                        {selectedHistoryColumns.includes("rate") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Rate
                           </th>
                         )}
-                        {selectedColumns.includes("cashDescount") && (
+                        {selectedHistoryColumns.includes("customer_discount") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cash Descount
+                            Cash Discount
                           </th>
                         )}
-                        {selectedColumns.includes("udaan_vidhan") && (
+                        {selectedHistoryColumns.includes("udam_vidian") && (
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Udaan/Vidhan
                           </th>
@@ -1330,52 +1239,50 @@ const MakeInvoice = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredHistoryData.map((item) => (
+                      {filteredHistory.map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50">
-                          {selectedColumns.includes("invoiceNumber") && (
+                          {selectedHistoryColumns.includes("invoice_no") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.invoiceNumber}
+                              {item.invoice_no}
                             </td>
                           )}
-                          {selectedColumns.includes("orderNumber") && (
+                          {selectedHistoryColumns.includes("order_number") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.orderNumber}
+                              {item.order_number}
                             </td>
                           )}
-                          {selectedColumns.includes("partyName") && (
+                          {selectedHistoryColumns.includes("party_name") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.partyName}
+                              {item.party_name}
                             </td>
                           )}
-                          {selectedColumns.includes("saudaNumber") && (
+                          {selectedHistoryColumns.includes("sauda_no") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.saudaNumber}
+                              {item.sauda_no}
                             </td>
                           )}
-                          {selectedColumns.includes("doNo") && (
+                          {selectedHistoryColumns.includes("do_no") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.doNo}
+                              {item.do_no}
                             </td>
                           )}
-                          {selectedColumns.includes("billDate") && (
+                          {selectedHistoryColumns.includes("bill_date") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.billDate
-                                ? new Date(item.billDate).toLocaleDateString()
+                              {item.bill_date
+                                ? new Date(item.bill_date).toLocaleDateString()
                                 : "-"}
                             </td>
                           )}
-                          {selectedColumns.includes("billNO") && (
+                          {selectedHistoryColumns.includes("bill_no") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.billNO}
+                              {item.bill_no}
                             </td>
                           )}
-                          {selectedColumns.includes("billImage") && (
+                          {selectedHistoryColumns.includes("bill_image") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.billImage ? (
+                              {item.bill_image ? (
                                 <button
-                                  onClick={(e) =>
-                                    handleViewPDF(item.billImage, e)
-                                  }
+                                  onClick={(e) => handleViewPDF(item.bill_image, e)}
                                   className="text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer font-medium px-2 py-1 rounded transition-colors"
                                   type="button"
                                 >
@@ -1386,66 +1293,66 @@ const MakeInvoice = () => {
                               )}
                             </td>
                           )}
-                          {selectedColumns.includes("deliveryTerm") && (
+                          {selectedHistoryColumns.includes("delivery_term") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.deliveryTerm}
+                              {item.delivery_term}
                             </td>
                           )}
-                          {selectedColumns.includes("transpoterName") && (
+                          {selectedHistoryColumns.includes("transporter_name") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.transpoterName}
+                              {item.transporter_name}
                             </td>
                           )}
-                          {selectedColumns.includes("vehicalNo") && (
+                          {selectedHistoryColumns.includes("vehicle_no") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.vehicalNo}
+                              {item.vehicle_no}
                             </td>
                           )}
-                          {selectedColumns.includes("biltyNo") && (
+                          {selectedHistoryColumns.includes("lt_number") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.biltyNo}
+                              {item.lt_number}
                             </td>
                           )}
-                          {selectedColumns.includes("billStatus") && (
+                          {selectedHistoryColumns.includes("bill_status") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.billStatus}
+                              {item.bill_status}
                             </td>
                           )}
-                          {selectedColumns.includes("size") && (
+                          {selectedHistoryColumns.includes("size") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {item.size}
                             </td>
                           )}
-                          {selectedColumns.includes("section") && (
+                          {selectedHistoryColumns.includes("section") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {item.section}
                             </td>
                           )}
-                          {selectedColumns.includes("qty") && (
+                          {selectedHistoryColumns.includes("qty") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {item.qty}
                             </td>
                           )}
-                          {selectedColumns.includes("rate") && (
+                          {selectedHistoryColumns.includes("rate") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {item.rate}
                             </td>
                           )}
-                          {selectedColumns.includes("cashDescount") && (
+                          {selectedHistoryColumns.includes("customer_discount") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.cashDescount}
+                              {item.customer_discount}
                             </td>
                           )}
-                          {selectedColumns.includes("udaan_vidhan") && (
+                          {selectedHistoryColumns.includes("udam_vidian") && (
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.udaan_vidhan}
+                              {item.udam_vidian}
                             </td>
                           )}
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {filteredHistoryData.length === 0 && !loading && (
+                  {filteredHistory.length === 0 && !loading && (
                     <div className="px-6 py-12 text-center">
                       <p className="text-gray-500">No invoice history found.</p>
                     </div>
@@ -1509,7 +1416,7 @@ const MakeInvoice = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Vehical
+                      Vehicle
                     </label>
                     <input
                       type="text"
@@ -1615,7 +1522,7 @@ const MakeInvoice = () => {
                     </label>
                     <div className="flex items-center space-x-3">
                       <label
-                        tabIndex={0} // <-- add this
+                        tabIndex={0}
                         className="flex items-center px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors"
                       >
                         <Upload size={16} className="mr-2" />
@@ -1644,9 +1551,9 @@ const MakeInvoice = () => {
 
                     <CustomSelect
                       placeholder="Search or select broker..."
-                      value={globalBrokerName || undefined} // Use globalBrokerName instead
+                      value={globalBrokerName || undefined}
                       onChange={(selectedBroker) => {
-                        handleGlobalBrokerChange(selectedBroker); // This will update all necessary states
+                        handleGlobalBrokerChange(selectedBroker);
                       }}
                       options={filteredBrokers}
                       className="w-full"
@@ -1694,8 +1601,6 @@ const MakeInvoice = () => {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {rows.map((row) => (
                           <tr key={row.id}>
-                            {/* In the Size & Rate Details table */}
-
                             <td className="px-4 py-3">
                               <CustomSelect
                                 placeholder="Select Size"
@@ -1703,7 +1608,7 @@ const MakeInvoice = () => {
                                 onChange={(value) =>
                                   handleRowInputChange(row.id, "size", value)
                                 }
-                                options={sizes} // ye tumhara sizes array
+                                options={sizes}
                                 className="w-[100px]"
                               />
                             </td>
@@ -1711,11 +1616,11 @@ const MakeInvoice = () => {
                             <td className="px-4 py-3">
                               <CustomSelect
                                 placeholder="Select Section"
-                                value={row.section || undefined}
+                                value={undefined}
                                 onChange={(value) =>
                                   handleRowInputChange(row.id, "section", value)
                                 }
-                                options={sections} // ye tumhara sections array
+                                options={sections}
                                 className="w-[230px]"
                               />
                             </td>
@@ -1734,8 +1639,6 @@ const MakeInvoice = () => {
                                 className="w-[100px] px-2 py-1 border border-gray-200 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
                             </td>
-
-                            {/* Updated */}
 
                             <td className="px-4 py-3">
                               {row.rate === "custom" ||
@@ -1814,8 +1717,6 @@ const MakeInvoice = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Button section */}
 
               <div className="flex items-center justify-end space-x-3 px-6 py-4 bg-gray-50 border-t border-gray-200">
                 <button

@@ -22,7 +22,7 @@
 //       // Adding timestamp to URL to prevent caching
 //       const timestamp = new Date().getTime();
 //       const response = await fetch(
-//         `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
+//         `https://script.google.com/macros/s/AKfycbyyMQjRx0hc36Wfgu5cKgNHBxRE90sDDnRQPJeWoOacZfxZ9KVn-Sgb_tXWkQ0PbkWm/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
 //       );
 //       const json = await response.json();
 
@@ -106,14 +106,14 @@
 
 //     try {
 //       const response = await fetch(
-//         "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+//         "https://script.google.com/macros/s/AKfycbyyMQjRx0hc36Wfgu5cKgNHBxRE90sDDnRQPJeWoOacZfxZ9KVn-Sgb_tXWkQ0PbkWm/exec",
 //         {
 //           method: "POST",
 //           headers: {
 //             "Content-Type": "application/x-www-form-urlencoded",
 //           },
 //           body: new URLSearchParams({
-//             sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+//             sheetId: "1JLYqBMg7rvA1YWjTYyUvVxRe2HTxld0pimxI1oShmrs",
 //             sheetName: "ORDER-INVOICE",
 //             action: "update",
 //             rowIndex: (id + 6).toString(),
@@ -597,7 +597,7 @@ const GetLoading2nd = () => {
       // Adding timestamp to URL to prevent caching
       const timestamp = new Date().getTime();
       const response = await fetch(
-        `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
+        `https://script.google.com/macros/s/AKfycbyyMQjRx0hc36Wfgu5cKgNHBxRE90sDDnRQPJeWoOacZfxZ9KVn-Sgb_tXWkQ0PbkWm/exec?sheet=ORDER-INVOICE&timestamp=${timestamp}`
       );
       const json = await response.json();
 
@@ -680,14 +680,14 @@ const GetLoading2nd = () => {
 
     try {
       const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
+        "https://script.google.com/macros/s/AKfycbyyMQjRx0hc36Wfgu5cKgNHBxRE90sDDnRQPJeWoOacZfxZ9KVn-Sgb_tXWkQ0PbkWm/exec",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
-            sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
+            sheetId: "1JLYqBMg7rvA1YWjTYyUvVxRe2HTxld0pimxI1oShmrs",
             sheetName: "ORDER-INVOICE",
             action: "update",
             rowIndex: (id + 6).toString(),

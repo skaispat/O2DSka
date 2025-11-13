@@ -38,7 +38,7 @@ const Sidebar = ({ onClose, isMobile = false }) => {
     { path: '/gate-in', icon: LogIn, label: 'Gate IN' },
     { path: '/tyre-weight', icon: Scale, label: 'Tyre Weight' },
     { path: '/get-loading-1st', icon: Truck, label: 'Get Loading 1st' },
-    { path: '/get-loading-2nd', icon: TruckIcon, label: 'Get Loading 2nd' },
+    // { path: '/get-loading-2nd', icon: TruckIcon, label: 'Get Loading 2nd' },
     { path: '/final-weight', icon: Weight, label: 'Final Weight' },
     { path: '/qc', icon: CheckCircle, label: 'QC' },
     { path: '/make-invoice', icon: Receipt, label: 'Make Invoice' },

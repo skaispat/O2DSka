@@ -8,80 +8,67 @@ const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
   const login = useAuthStore(state => state.login);
-  const [loading, setLaoding] = useState(false);
-
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!username.trim() || !password.trim()) {
+      toast.error('Please enter both username and password');
+      return;
+    }
 
-    setLaoding(true);
+    setLoading(true);
     const success = await login(username, password);
-    setLaoding(false);
+    setLoading(false);
 
     if (success) {
       const user = useAuthStore.getState().user;
       toast.success(`Welcome back, ${user.name}!`);
 
-
-      const pages = user.page.split(',').map(item => item.trim());
-
-      console.log("pages", pages);
-
-      const mainPages = [
-        "Dashboard",
-        "SaudaForm",
-        "DO Generate",
-        "Gate IN",
-        "Tyre Weight",
-        "Get Loading 1st",
-        "Get Loading 2nd",
-        "Final Weight",
-        "QC",
-        "Make Invoice",
-        "Get Out"
-      ];
-
-      let pagesss = "";
-      for (let key of mainPages) {
-        if (pages.includes(key)) {
-          pagesss = key;
-          break;
-        }
-      }
-
-      if (pagesss === "Dashboard") {
-        navigate('/dashboard');
-      } else if (pagesss === "SaudaForm") {
-        navigate('/sauda-form');
-      } else if (pagesss === "DO Generate") {
-        navigate('/do-generate');
-      } else if (pagesss === "Gate IN") {
-        navigate('/gate-in');
-      } else if (pagesss === "Tyre Weight") {
-        navigate('/tyre-weight');
-      } else if (pagesss === "Get Loading 1st") {
-        navigate('/get-loading-1st');
-      } else if (pagesss === "Get Loading 2nd") {
-        navigate('/get-loading-2nd');
-      } else if (pagesss === "Final Weight") {
-        navigate('/final-weight');
-      } else if (pagesss === "QC") {
-        navigate('/qc');
-      } else if (pagesss === "Make Invoice") {
-        navigate('/make-invoice');
-      } else if (pagesss === "Get Out") {
-        navigate('/get-out');
-      }
-
-
-
-      // Redirect based on role if needed
-
+      // Navigate based on user's page
+      redirectUser(user.page);
     } else {
       toast.error('Invalid credentials');
     }
+  };
+
+  const redirectUser = (pageString) => {
+    if (!pageString) {
+      toast.error('No page assigned to user');
+      return;
+    }
+
+    const pages = pageString.split(',').map(item => item.trim());
+    
+    const pageRoutes = {
+      "Dashboard": '/dashboard',
+      "SaudaForm": '/sauda-form',
+      "DO Generate": '/do-generate',
+      "Gate IN": '/gate-in',
+      "Tyre Weight": '/tyre-weight',
+      "Get Loading 1st": '/get-loading',
+      "Get Loading 2nd": '/get-loading-2nd',
+      "Final Weight": '/final-weight',
+      "QC": '/qc',
+      "Make Invoice": '/make-invoice',
+      "Get Out": '/get-out'
+    };
+
+    // Find the first matching page from user's pages
+    for (let page of pages) {
+      if (pageRoutes[page]) {
+        navigate(pageRoutes[page]);
+        return;
+      }
+    }
+
+    // If no specific page found, default to dashboard or show error
+    toast.error('No valid page assigned to user');
+    navigate('/dashboard');
   };
 
   const togglePasswordVisibility = () => {
@@ -120,6 +107,7 @@ const Login = () => {
                   onChange={(e) => setUsername(e.target.value)}
                   className="appearance-none relative block w-full pl-10 pr-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   placeholder="Username"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -139,12 +127,14 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="appearance-none relative block w-full pl-10 pr-12 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                   placeholder="Password"
+                  disabled={loading}
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                   <button
                     type="button"
                     onClick={togglePasswordVisibility}
                     className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                    disabled={loading}
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5" />
@@ -161,17 +151,11 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="disabled:bg-indigo-400 disabled:cursor-not-allowed group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="disabled:bg-indigo-400 disabled:cursor-not-allowed group relative w-full flex justify-center items-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              {
-                loading && <Loader2Icon className='animate-spin' />
-              }
-              Sign in
+              {loading && <Loader2Icon className="animate-spin mr-2 h-4 w-4" />}
+              {loading ? 'Signing in...' : 'Sign in'}
             </button>
-          </div>
-
-          <div className="text-sm text-center text-gray-600">
-
           </div>
         </form>
       </div>

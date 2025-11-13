@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, X, Filter, Search, RefreshCw, Eye } from "lucide-react";
+import { Plus, X, Filter, Search, RefreshCw, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import useAuthStore from "../store/authStore";
 import toast from "react-hot-toast";
 import { Select } from "antd";
-import CustomSelect from "../utils/CustomSelect";
+import supabase from "../SupabaseClient";
 
 const DoGenerate = () => {
   const { user } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterParty, setFilterParty] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [brandOptions, setBrandOptions] = useState([]);
   const [deliveryTermOptions, setDeliveryTermOptions] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,15 +19,13 @@ const DoGenerate = () => {
   const [changeVehicalNo, setChangeVehicalNo] = useState(false);
   const { Option } = Select;
   const [partyNames, setPartyNames] = useState([]);
-  const [showBrandDropdown, setShowBrandDropdown] = useState(false);
-  const [showPartyDropdown, setShowPartyDropdown] = useState(false);
-  const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
   const [isAddingParty, setIsAddingParty] = useState(false);
   const [isAddingTransporter, setIsAddingTransporter] = useState(false);
   const [isAddingBrand, setIsAddingBrand] = useState(false);
-  const brandDropdownRef = useRef(null);
-  const partyDropdownRef = useRef(null);
-  const transporterDropdownRef = useRef(null);
+
+  // Mobile state
+  const [isMobile, setIsMobile] = useState(false);
+  const [expandedCard, setExpandedCard] = useState(null);
 
   // Column visibility state
   const [columnVisibility, setColumnVisibility] = useState({
@@ -79,6 +76,20 @@ const DoGenerate = () => {
     { id: "editVehicleNumber", label: "Edit Vehicle Number" },
   ];
 
+  // Check mobile view
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
   // Add this function to reset the form data
   const resetFormData = () => {
     setFormData({
@@ -99,37 +110,6 @@ const DoGenerate = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
-      if (
-        brandDropdownRef.current &&
-        !brandDropdownRef.current.contains(event.target)
-      ) {
-        setShowBrandDropdown(false);
-      }
-      if (
-        partyDropdownRef.current &&
-        !partyDropdownRef.current.contains(event.target)
-      ) {
-        setShowPartyDropdown(false);
-      }
-      if (
-        transporterDropdownRef.current &&
-        !transporterDropdownRef.current.contains(event.target)
-      ) {
-        setShowTransporterDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowDropdown(false);
-      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -144,497 +124,211 @@ const DoGenerate = () => {
     }));
   };
 
-  useEffect(() => {
-    const fetchDOData = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(
-          `https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=ORDER-INVOICE`
-        );
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const parsed = json.data.slice(6).map((row, index) => ({
-            id: index + 1,
-            serialNumber: row[1],
-            partyName: row[2],
-            erpDoNo: row[3],
-            transporterName: row[4],
-            lrNumber: row[5],
-            vehicleNumber: row[6],
-            deliveryTerm: row[7],
-            brandName: row[8],
-            dispatchQty: row[9],
-            timestamp: row[0],
-            completed: false,
-          }));
+  // Fetch DO data from Supabase
+  const fetchDOData = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('order_invoice')
+        .select('*')
+        .order('timestamp', { ascending: false });
 
-          const sortedData = parsed.sort((a, b) => {
-            if (a.timestamp && b.timestamp) {
-              return new Date(b.timestamp) - new Date(a.timestamp);
-            }
-            const aNum = parseInt(a.serialNumber?.split("-")[1]) || 0;
-            const bNum = parseInt(b.serialNumber?.split("-")[1]) || 0;
-            return bNum - aNum;
-          });
+      if (error) throw error;
 
-          setDoData(sortedData);
-        } else {
-          setDoData([]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch DO Data:", err);
-        toast.error("Failed to load DO data");
-      } finally {
-        setLoading(false);
+      if (data) {
+        const transformedData = data.map((item, index) => ({
+          id: item.id,
+          serialNumber: item.order_no || `DO-${item.id}`,
+          partyName: item.party_name,
+          erpDoNo: item.erp_do_no,
+          transporterName: item.transporter_name,
+          lrNumber: item.lr_number,
+          vehicleNumber: item.vehicle_number,
+          deliveryTerm: item.delivery_term,
+          brandName: item.brand_name,
+          dispatchQty: item.dispatch_qty,
+          timestamp: item.timestamp,
+          completed: false,
+        }));
+
+        setDoData(transformedData);
+      } else {
+        setDoData([]);
       }
-    };
-
-    fetchDOData();
-  }, [refreshData]);
-
-  useEffect(() => {
-    const fetchMasterData = async () => {
-      try {
-        const response = await fetch(
-          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=Main Master"
-        );
-        const data = await response.json();
-        if (data.success && data.data && data.data.length > 1) {
-          const brands = data.data
-            .slice(1)
-            .map((row) => (row[0] ? row[0].toString().trim() : ""))
-            .filter((brand) => brand !== "");
-
-          const deliveryTerms = data.data
-            .slice(1)
-            .map((row) => (row[1] ? row[1].toString().trim() : ""))
-            .filter((term) => term !== "");
-
-          setBrandOptions([...new Set(brands.filter((b) => b))]);
-          setDeliveryTermOptions([...new Set(deliveryTerms.filter((t) => t))]);
-        }
-      } catch (error) {
-        console.error("Error fetching master data:", error);
-        setBrandOptions([]);
-        setDeliveryTermOptions([]);
-      }
-    };
-
-    fetchMasterData();
-  }, []);
-
-  const getTransporterNames = (sheetData) => {
-    return sheetData
-      .slice(1)
-      .map((row) => row[5])
-      .filter((name) => name && name.trim() !== "");
+    } catch (err) {
+      console.error("Failed to fetch DO Data:", err);
+      toast.error("Failed to load DO data");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const fetchMainMasterData = async () => {
+  // Fetch dropdown options from Supabase
+  const fetchDropdownOptions = async () => {
     try {
-      const res = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheetId=13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY&sheetName=Main%20Master"
-      );
+      const { data, error } = await supabase
+        .from('dropdown')
+        .select('*');
 
-      const data = await res.json();
+      if (error) throw error;
 
-      if (data.success) {
-        const transporterNames = getTransporterNames(data.data);
-        setTransporterName(transporterNames);
-      } else {
-        console.error("Error fetching data:", data.error);
+      if (data) {
+        // Extract unique values for each dropdown
+        const brands = [...new Set(data.map(item => item.brand_name).filter(Boolean))].sort();
+        const parties = [...new Set(data.map(item => item.party_name).filter(Boolean))].sort();
+        const transporters = [...new Set(data.map(item => item.transporter_name).filter(Boolean))].sort();
+        const deliveryTerms = [...new Set(data.map(item => item.delivery_terms).filter(Boolean))].sort();
+        
+        setBrandOptions(brands);
+        setPartyNames(parties);
+        setTransporterName(transporters);
+        setDeliveryTermOptions(deliveryTerms);
       }
     } catch (error) {
-      console.error("Fetch error:", error);
+      console.error("Error fetching dropdown options:", error);
+      toast.error("Failed to load dropdown options");
     }
   };
 
   useEffect(() => {
-    fetchMainMasterData();
-  }, []);
+    fetchDOData();
+    fetchDropdownOptions();
+  }, [refreshData]);
 
   const handleRefresh = () => {
     setRefreshData((prev) => !prev);
   };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-
-    // Show dropdown when typing in specific fields
-    if (name === "brandName") {
-      setShowBrandDropdown(true);
-    } else if (name === "partyName") {
-      setShowPartyDropdown(true);
-    }
-  };
-  const handleBrandSelect = (brand) => {
-    setFormData((prev) => ({ ...prev, brandName: brand }));
-    setShowBrandDropdown(false);
   };
 
-  const handlePartySelect = (party) => {
-    setFormData((prev) => ({ ...prev, partyName: party }));
-    setShowPartyDropdown(false);
-  };
-
-  const handleTransporterSelect = (transporter) => {
-    setSelectedTransporter(transporter);
-    setShowTransporterDropdown(false);
-  };
-
-  const addNewPartyToMaster = async (partyName) => {
+  // Add new option to dropdown table
+  const addNewDropdownOption = async (fieldName, value) => {
     try {
-      const rowData = ["", "", "", "", "", "", partyName.trim()]; // Party name in column G (index 6)
+      const newOption = {
+        [fieldName]: value.trim(),
+        created_at: new Date().toISOString(),
+      };
 
-      const encodedSheetName = encodeURIComponent("Main Master");
+      const { data, error } = await supabase
+        .from('dropdown')
+        .insert([newOption])
+        .select();
 
-      const payload = new URLSearchParams();
-      payload.append("action", "insert");
-      payload.append("sheetName", encodedSheetName);
-      payload.append("rowData", JSON.stringify(rowData));
+      if (error) throw error;
 
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: payload.toString(),
-        }
-      );
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to add party");
-      }
-
-      await fetchPartyNames();
-      toast.success(`Party "${partyName}" added successfully!`);
       return true;
     } catch (error) {
-      console.error("Error adding party:", error);
-      toast.error(`Failed to add party: ${error.message}`);
-      return false;
-    }
-  };
-
-  const fetchPartyNames = async () => {
-    try {
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=Main Master"
-      );
-      const data = await response.json();
-      if (data.success && data.data && data.data.length > 1) {
-        const parties = data.data
-          .slice(1)
-          .map((row) => (row[6] ? row[6].toString().trim() : "")) // Column G (index 6)
-          .filter((party) => party !== "");
-
-        setPartyNames([...new Set(parties.filter((p) => p))]);
-      }
-    } catch (error) {
-      console.error("Error fetching party names:", error);
-      setPartyNames([]);
+      console.error(`Error adding ${fieldName}:`, error);
+      throw new Error(`Failed to add ${fieldName}`);
     }
   };
 
   const handleAddNewParty = async () => {
-    const currentSearchValue = document.querySelector(
-      ".party-select .ant-select-selection-search input"
-    )?.value;
-    const partyToAdd = currentSearchValue || formData.partyName;
-
-    if (
-      partyToAdd &&
-      partyToAdd.trim() &&
-      !partyNames.includes(partyToAdd.trim())
-    ) {
+    if (formData.partyName && formData.partyName.trim() !== "") {
       setIsAddingParty(true);
-      const success = await addNewPartyToMaster(partyToAdd.trim());
-      if (success) {
-        setFormData((prev) => ({ ...prev, partyName: partyToAdd.trim() }));
+      try {
+        await addNewDropdownOption('party_name', formData.partyName);
+        await fetchDropdownOptions();
+        toast.success(`Party "${formData.partyName.trim()}" added successfully!`);
+      } catch (error) {
+        toast.error(`Failed to add party: ${error.message}`);
+      } finally {
+        setIsAddingParty(false);
       }
-      setIsAddingParty(false);
-    } else if (partyToAdd && partyNames.includes(partyToAdd.trim())) {
-      toast.info("Party already exists");
-    } else {
-      toast.error("Please enter a party name first");
     }
   };
 
   const handleAddNewTransporter = async () => {
-    const currentSearchValue = document.querySelector(
-      ".transporter-select .ant-select-selection-search input"
-    )?.value;
-    const transporterToAdd = currentSearchValue || selectedTransporter;
-
-    if (
-      transporterToAdd &&
-      transporterToAdd.trim() &&
-      !transporterName.includes(transporterToAdd.trim())
-    ) {
+    if (selectedTransporter && selectedTransporter.trim() !== "") {
       setIsAddingTransporter(true);
-      const success = await addNewTransporterToMaster(transporterToAdd.trim());
-      if (success) {
-        setSelectedTransporter(transporterToAdd.trim());
+      try {
+        await addNewDropdownOption('transporter_name', selectedTransporter);
+        await fetchDropdownOptions();
+        toast.success(`Transporter "${selectedTransporter.trim()}" added successfully!`);
+      } catch (error) {
+        toast.error(`Failed to add transporter: ${error.message}`);
+      } finally {
+        setIsAddingTransporter(false);
       }
-      setIsAddingTransporter(false);
-    } else if (
-      transporterToAdd &&
-      transporterName.includes(transporterToAdd.trim())
-    ) {
-      toast.info("Transporter already exists");
-    } else {
-      toast.error("Please enter a transporter name first");
     }
   };
-
-  useEffect(() => {
-    fetchPartyNames();
-  }, []);
-
-  const addNewTransporterToMaster = async (transporterName) => {
-    try {
-      const rowData = [transporterName.trim()];
-
-      const encodedSheetName = encodeURIComponent("Main Master");
-
-      const payload = new URLSearchParams();
-      payload.append("action", "insertTransporterOnly");
-      payload.append("sheetName", encodedSheetName);
-      payload.append("rowData", JSON.stringify(rowData));
-
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: payload.toString(),
-        }
-      );
-
-      const result = await response.json();
-      if (!result.success)
-        throw new Error(result.error || "Failed to add transporter");
-
-      await fetchMainMasterData();
-      toast.success(`Transporter "${transporterName}" added successfully!`);
-      return true;
-    } catch (error) {
-      console.error("Error adding transporter:", error);
-      toast.error(`Failed to add transporter: ${error.message}`);
-      return false;
-    }
-  };
-
-  const filteredBrandOptions =
-    formData.brandName && formData.brandName.trim() !== ""
-      ? brandOptions.filter((brand) =>
-          brand.toLowerCase().includes(formData.brandName.toLowerCase())
-        )
-      : brandOptions;
-
-  const filteredPartyOptions =
-    formData.partyName && formData.partyName.trim() !== ""
-      ? partyNames.filter((party) =>
-          party.toLowerCase().includes(formData.partyName.toLowerCase())
-        )
-      : partyNames;
-
-  const filteredTransporterOptions =
-    selectedTransporter && selectedTransporter.trim() !== ""
-      ? transporterName.filter((transporter) =>
-          transporter.toLowerCase().includes(selectedTransporter.toLowerCase())
-        )
-      : transporterName;
-
-  const [showDealerModal, setShowDealerModal] = useState({
-    show: false,
-    brandName: "",
-    callback: null,
-  });
 
   const handleAddNewBrand = async () => {
-    const currentSearchValue = document.querySelector(
-      ".brand-select .ant-select-selection-search input"
-    )?.value;
-    const brandToAdd = currentSearchValue || formData.brandName;
-
-    if (
-      brandToAdd &&
-      brandToAdd.trim() &&
-      !brandOptions.includes(brandToAdd.trim())
-    ) {
+    if (formData.brandName && formData.brandName.trim() !== "") {
       setIsAddingBrand(true);
-      const success = await addNewBrandToMaster(brandToAdd.trim());
-      if (success) {
-        setFormData((prev) => ({ ...prev, brandName: brandToAdd.trim() }));
+      try {
+        await addNewDropdownOption('brand_name', formData.brandName);
+        await fetchDropdownOptions();
+        toast.success(`Brand "${formData.brandName.trim()}" added successfully!`);
+      } catch (error) {
+        toast.error(`Failed to add brand: ${error.message}`);
+      } finally {
+        setIsAddingBrand(false);
       }
-      setIsAddingBrand(false);
-    } else if (brandToAdd && brandOptions.includes(brandToAdd.trim())) {
-      toast.info("Brand already exists");
-    } else {
-      toast.error("Please enter a brand name first");
-    }
-  };
-
-  const addNewBrandToMaster = async (brandName) => {
-    try {
-      // Include empty values for all columns up to column G (dealer name)
-      const rowData = [
-        brandName.trim(), // Column A: Brand Name
-        "", // Column B: Empty
-        "", // Column C: Empty
-        "", // Column D: Empty
-        "", // Column E: Empty
-        "", // Column F: Empty
-        "", // Column G: Dealer Name (empty for now)
-      ];
-
-      const encodedSheetName = encodeURIComponent("Main Master");
-
-      const payload = new URLSearchParams();
-      payload.append("action", "insertBrandOnly");
-      payload.append("sheetName", encodedSheetName);
-      payload.append("rowData", JSON.stringify(rowData));
-
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: payload.toString(),
-        }
-      );
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to add brand");
-      }
-
-      // Refresh brand options
-      const fetchMasterData = async () => {
-        try {
-          const response = await fetch(
-            "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec?sheet=Main Master"
-          );
-          const data = await response.json();
-          if (data.success && data.data && data.data.length > 1) {
-            const brands = data.data
-              .slice(1)
-              .map((row) => (row[0] ? row[0].toString().trim() : ""))
-              .filter((brand) => brand !== "");
-
-            setBrandOptions([...new Set(brands.filter((b) => b))]);
-          }
-        } catch (error) {
-          console.error("Error fetching master data:", error);
-        }
-      };
-
-      await fetchMasterData();
-      toast.success(`Brand "${brandName}" added successfully!`);
-      return true;
-    } catch (error) {
-      console.error("Error adding brand:", error);
-      toast.error(`Failed to add brand: ${error.message}`);
-      return false;
-    }
-  };
-
-  function getFormattedDateTime() {
-    const now = new Date();
-
-    const pad = (num) => num.toString().padStart(2, "0");
-
-    const day = pad(now.getDate());
-    const month = pad(now.getMonth() + 1);
-    const year = now.getFullYear();
-
-    const hours = pad(now.getHours());
-    const minutes = pad(now.getMinutes());
-    const seconds = pad(now.getSeconds());
-
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-  }
-
-  const postToGoogleSheet = async (data) => {
-    try {
-      const timeStemp = getFormattedDateTime();
-      console.log("timeStemp", timeStemp);
-
-      // Remove the commented out manual order number generation code
-      // The server will now automatically generate the order number
-
-      const response = await fetch(
-        "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-            sheetName: "ORDER-INVOICE",
-            action: "insert",
-            rowData: JSON.stringify([
-              timeStemp, // Column A: Timestamp
-              "", // Column B: Order Number (auto-generated by server)
-              data.partyName, // Column C
-              data.erpDoNo, // Column D
-              selectedTransporter, // Column E
-              data.lrNumber, // Column F
-              data.vehicleNumber, // Column G
-              data.deliveryTerm, // Column H
-              data.brandName, // Column I
-              data.dispatchQty, // Column J
-            ]),
-          }),
-        }
-      );
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || "Failed to save to Google Sheet");
-      }
-
-      // Log the generated order number for reference
-      if (result.generatedOrderNumber) {
-        console.log("Generated Order Number:", result.generatedOrderNumber);
-      }
-
-      return result;
-    } catch (error) {
-      console.error("Error posting to Google Sheet:", error);
-      throw error;
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const now = new Date();
+    const indianTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    
+    const formatToMySQLDateTime = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const seconds = String(date.getSeconds()).padStart(2, '0');
+      
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+
     try {
-      await postToGoogleSheet(formData);
+      // Prepare data for Supabase insertion
+      const orderData = {
+        timestamp:formatToMySQLDateTime(indianTime),
+        // order_no: `DO-${Date.now()}`,
+        erp_do_no: formData.erpDoNo,
+        party_name: formData.partyName,
+        transporter_name: selectedTransporter,
+        lr_number: formData.lrNumber,
+        vehicle_number: formData.vehicleNumber,
+        delivery_term: formData.deliveryTerm,
+        brand_name: formData.brandName,
+        dispatch_qty: formData.dispatchQty,
+        // planned1: new Date().toLocaleString("en-IN", { 
+        //   timeZone: "Asia/Kolkata", 
+        //   hour12: false 
+        // }),
+      };
+
+      // Insert into Supabase order_invoice table
+      const { data, error } = await supabase
+        .from('order_invoice')
+        .insert([orderData])
+        .select();
+
+      if (error) {
+        throw new Error(`Supabase Error: ${error.message}`);
+      }
+
       toast.success("DO generated and saved successfully!");
-      setFormData({
-        partyName: "",
-        erpDoNo: "",
-        transporterName: "",
-        lrNumber: "",
-        vehicleNumber: "",
-        deliveryTerm: "",
-        brandName: "",
-        dispatchQty: "",
-      });
-      setSelectedTransporter("");
+      
+      // Reset form
+      resetFormData();
       setShowModal(false);
-      setRefreshData((prev) => !prev);
+      fetchDOData(); // Refresh the data
+      
     } catch (error) {
       console.error("Error:", error);
       toast.error("Failed to save DO. Please try again.");
@@ -643,182 +337,432 @@ const DoGenerate = () => {
     }
   };
 
-  const filteredData = doData.filter((item) => {
-    const partyName = String(item.partyName || ""); // always string bana diya
+  // Update vehicle number in Supabase
+ const handleSubmitVehicleNumber = async (id, orderNo) => {
+  try {
+    const vehicleNumber = editedVehicleNumbers[id];
+    setChangeVehicalNo(true);
 
-    const matchesSearch = partyName
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase());
+    // Execute both updates in parallel
+    const [orderInvoiceUpdate, invoiceDeliveryUpdate] = await Promise.allSettled([
+      // Always update order_invoice
+      supabase
+        .from('order_invoice')
+        .update({ 
+          vehicle_number: vehicleNumber,
+        })
+        .eq('order_no', orderNo),
+
+      // Update invoice_delivery only if it exists (this will fail silently if order doesn't exist)
+      supabase
+        .from('invoice_delivery')
+        .update({ 
+          vehicle_number: vehicleNumber,
+        })
+        .eq('order_no', orderNo)
+    ]);
+
+    // Check if order_invoice update was successful
+    if (orderInvoiceUpdate.status === 'rejected') {
+      throw new Error(`Order invoice update failed: ${orderInvoiceUpdate.reason.message}`);
+    }
+
+    // Log invoice_delivery update result (success or failure is acceptable)
+    if (invoiceDeliveryUpdate.status === 'rejected') {
+      console.warn("Invoice delivery update failed (order might not exist):", invoiceDeliveryUpdate.reason.message);
+    }
+
+    toast.success("Vehicle number updated successfully!");
+
+    // Update local state
+    setDoData((prevData) =>
+      prevData.map((item) =>
+        item.id === id
+          ? { ...item, vehicleNumber: vehicleNumber }
+          : item
+      )
+    );
+
+    setEditingId(null);
+  } catch (error) {
+    console.error("Error updating vehicle number:", error);
+    toast.error("Failed to update vehicle number");
+    setEditingId(null);
+  } finally {
+    setChangeVehicalNo(false);
+  }
+};
+
+  const filteredData = doData.filter((item) => {
+    const partyName = String(item.partyName || "");
+    const serialNumber = String(item.serialNumber || "");
+    const erpDoNo = String(item.erpDoNo || "");
+    const transporterName = String(item.transporterName || "");
+    const vehicleNumber = String(item.vehicleNumber || "");
+    const lrNumber = String(item.lrNumber || "");
+    
+    const matchesSearch = 
+      partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      erpDoNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lrNumber.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesParty = filterParty === "all" || partyName === filterParty;
 
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "pending" && !item.completed) ||
-      (statusFilter === "complete" && item.completed);
-
-    return matchesSearch && matchesParty && matchesStatus;
+    return matchesSearch && matchesParty;
   });
 
   const uniqueParties = [...new Set(doData.map((item) => item.partyName))];
 
-  // const handleSubmitVehicleNumber = async (id, orderNo) => {
-  //   try {
-  //     const vehicleNumber = editedVehicleNumbers[id];
-  //     setChangeVehicalNo(true);
-  //     const responseOrderInvoice = await fetch(
-  //       "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-  //       {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/x-www-form-urlencoded",
-  //         },
-  //         body: new URLSearchParams({
-  //           sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-  //           sheetName: "ORDER-INVOICE",
-  //           action: "updateVehicleByOrderNoOrderInvoice",
-  //           orderNo: orderNo,
-  //           vehicleNumber: vehicleNumber,
-  //         }),
-  //       }
-  //     );
-
-  //     const responseInvoiceDelivery = await fetch(
-  //       "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-  //       {
-  //         method: "POST",
-  //         headers: {
-  //           "Content-Type": "application/x-www-form-urlencoded",
-  //         },
-  //         body: new URLSearchParams({
-  //           sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-  //           sheetName: "INVOICE-DELIVERY",
-  //           action: "updateVehicleByOrderNoInvoiceDelivery",
-  //           orderNo: orderNo,
-  //           vehicleNumber: vehicleNumber,
-  //         }),
-  //       }
-  //     );
-
-  //     const resultOrderInvoice = await responseOrderInvoice.json();
-
-  //     if (resultOrderInvoice.success) {
-  //       toast.success("Vehicle number updated successfully!");
-
-  //       setDoData((prevData) =>
-  //         prevData.map((item) =>
-  //           item.serialNumber === orderNo
-  //             ? { ...item, vehicleNumber: vehicleNumber }
-  //             : item
-  //         )
-  //       );
-
-  //       setEditingId(null);
-  //     } else {
-  //       setEditingId(null);
-  //       throw new Error(
-  //         resultOrderInvoice.error || "Failed to update vehicle number"
-  //       );
-  //     }
-
-  //     const resultInvoiceDelivery = await responseInvoiceDelivery.json();
-  //     console.log("resultInvoiceDelivery",resultInvoiceDelivery)
-
-  //     if (!resultInvoiceDelivery.success) {
-  //       throw new Error(
-  //         resultInvoiceDelivery.error ||
-  //           "Failed to update vehicle number in Invoice-Delivery"
-  //       );
-  //       setEditingId(null);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error updating vehicle number:", error);
-  //     toast.error("Failed to update vehicle number");
-  //   } finally {
-  //     setChangeVehicalNo(false);
-  //   }
-  // };
-
-  const handleSubmitVehicleNumber = async (id, orderNo) => {
-    try {
-      const vehicleNumber = editedVehicleNumbers[id];
-      setChangeVehicalNo(true);
-
-      // Execute both requests in parallel
-      const [resultOrderInvoice, resultInvoiceDelivery] = await Promise.all([
-        fetch(
-          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-              sheetName: "ORDER-INVOICE",
-              action: "updateVehicleByOrderNoOrderInvoice",
-              orderNo: orderNo,
-              vehicleNumber: vehicleNumber,
-            }),
-          }
-        ).then((res) => res.json()),
-
-        fetch(
-          "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: new URLSearchParams({
-              sheetId: "13t-k1QO-LaJnvtAo2s4qjO97nh9XOqpM3SvTef9CaaY",
-              sheetName: "INVOICE-DELIVERY",
-              action: "updateVehicleByOrderNoInvoiceDelivery",
-              orderNo: orderNo,
-              vehicleNumber: vehicleNumber,
-            }),
-          }
-        ).then((res) => res.json()),
-      ]);
-
-      // Check if both updates were successful
-      if (resultOrderInvoice.success) {
-        toast.success("Vehicle number updated successfully in both sheets!");
-
-        // Update local state
-        setDoData((prevData) =>
-          prevData.map((item) =>
-            item.serialNumber === orderNo
-              ? { ...item, vehicleNumber: vehicleNumber }
-              : item
-          )
-        );
-
-        setEditingId(null);
-      } else {
-        // Handle partial success or failure
-        const errors = [];
-        if (!resultOrderInvoice.success) {
-          errors.push(`ORDER-INVOICE: ${resultOrderInvoice.error}`);
-        }
-        if (!resultInvoiceDelivery.success) {
-          errors.push(`INVOICE-DELIVERY: ${resultInvoiceDelivery.error}`);
-        }
-        throw new Error(errors.join(", "));
-      }
-    } catch (error) {
-      console.error("Error updating vehicle number:", error);
-      toast.error("Failed to update vehicle number");
-      setEditingId(null);
-    } finally {
-      setChangeVehicalNo(false);
-    }
+  const toggleCardExpand = (id) => {
+    setExpandedCard(expandedCard === id ? null : id);
   };
 
+  // Render table for desktop view
+  const renderTable = () => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {columnVisibility.serialNumber && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Serial Number
+              </th>
+            )}
+            {columnVisibility.partyName && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Party Name
+              </th>
+            )}
+            {columnVisibility.erpDoNo && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                ERP DO No.
+              </th>
+            )}
+            {columnVisibility.transporterName && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Transporter Name
+              </th>
+            )}
+            {columnVisibility.lrNumber && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                LR Number
+              </th>
+            )}
+            {columnVisibility.vehicleNumber && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Vehicle Number
+              </th>
+            )}
+            {columnVisibility.deliveryTerm && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Delivery Term
+              </th>
+            )}
+            {columnVisibility.brandName && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Brand Name
+              </th>
+            )}
+            {columnVisibility.dispatchQty && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Dispatch Qty
+              </th>
+            )}
+            {columnVisibility.editVehicleNumber && (
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Edit Vehicle Number
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {filteredData.map((item) => (
+            <tr key={item.id} className="hover:bg-gray-50">
+              {columnVisibility.serialNumber && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.serialNumber}
+                </td>
+              )}
+              {columnVisibility.partyName && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.partyName}
+                </td>
+              )}
+              {columnVisibility.erpDoNo && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.erpDoNo}
+                </td>
+              )}
+              {columnVisibility.transporterName && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.transporterName}
+                </td>
+              )}
+              {columnVisibility.lrNumber && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.lrNumber}
+                </td>
+              )}
+              {columnVisibility.vehicleNumber && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {editingId === item.id ? (
+                    <input
+                      type="text"
+                      value={
+                        editedVehicleNumbers[item.id] ||
+                        item.vehicleNumber
+                      }
+                      onChange={(e) =>
+                        setEditedVehicleNumbers({
+                          ...editedVehicleNumbers,
+                          [item.id]: e.target.value,
+                        })
+                      }
+                      className="border border-gray-300 rounded-md px-2 py-1 w-full text-sm"
+                    />
+                  ) : (
+                    item.vehicleNumber
+                  )}
+                </td>
+              )}
+              {columnVisibility.deliveryTerm && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.deliveryTerm}
+                </td>
+              )}
+              {columnVisibility.brandName && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.brandName}
+                </td>
+              )}
+              {columnVisibility.dispatchQty && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {item.dispatchQty}
+                </td>
+              )}
+              {columnVisibility.editVehicleNumber && (
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {editingId === item.id ? (
+                    <button
+                      onClick={() =>
+                        handleSubmitVehicleNumber(
+                          item.id,
+                          item.serialNumber
+                        )
+                      }
+                      className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-xs"
+                    >
+                      {changeVehicalNo ? "Submitting..." : "Submit"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setEditedVehicleNumbers({
+                          ...editedVehicleNumbers,
+                          [item.id]: item.vehicleNumber,
+                        });
+                      }}
+                      className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+ // Render cards for mobile view
+const renderCards = () => (
+  <div className="space-y-3 p-3">
+    {filteredData.map((item) => (
+      <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+        <div 
+          className="p-4 cursor-pointer"
+          onClick={() => toggleCardExpand(item.id)}
+        >
+          {/* Header with Serial Number and Expand Button */}
+          <div className="flex justify-between items-start mb-3">
+            <div className="flex items-center space-x-2">
+              {columnVisibility.serialNumber && (
+                <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                  {item.serialNumber}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCardExpand(item.id);
+              }}
+              className="text-gray-400 hover:text-gray-600 p-1"
+            >
+              {expandedCard === item.id ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
+            </button>
+          </div>
+
+          {/* Essential Info */}
+          <div className="space-y-2">
+            {columnVisibility.partyName && item.partyName && (
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-sm">Party:</span>
+                <span className="font-medium text-sm">{item.partyName}</span>
+              </div>
+            )}
+            
+            {columnVisibility.erpDoNo && item.erpDoNo && (
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-sm">ERP DO No:</span>
+                <span className="font-medium text-sm">{item.erpDoNo}</span>
+              </div>
+            )}
+
+            {columnVisibility.vehicleNumber && (
+              <div className="flex justify-between">
+                <span className="text-gray-500 text-sm">Vehicle No:</span>
+                <span className="font-medium text-sm">
+                  {item.vehicleNumber}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Edit Button for Mobile - Only show when NOT editing and card is collapsed */}
+          {columnVisibility.editVehicleNumber && !editingId && expandedCard !== item.id && (
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingId(item.id);
+                  setEditedVehicleNumbers({
+                    ...editedVehicleNumbers,
+                    [item.id]: item.vehicleNumber,
+                  });
+                }}
+                className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+              >
+                Edit Vehicle Number
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Expanded Details */}
+        {expandedCard === item.id && (
+          <div className="border-t border-gray-200 p-4 bg-gray-50">
+            <div className="space-y-2 text-sm">
+              {columnVisibility.transporterName && item.transporterName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Transporter:</span>
+                  <span className="font-medium">{item.transporterName}</span>
+                </div>
+              )}
+              
+              {columnVisibility.lrNumber && item.lrNumber && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">LR Number:</span>
+                  <span className="font-medium">{item.lrNumber}</span>
+                </div>
+              )}
+              
+              {columnVisibility.deliveryTerm && item.deliveryTerm && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Delivery Term:</span>
+                  <span className="font-medium">{item.deliveryTerm}</span>
+                </div>
+              )}
+              
+              {columnVisibility.brandName && item.brandName && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Brand:</span>
+                  <span className="font-medium">{item.brandName}</span>
+                </div>
+              )}
+              
+              {columnVisibility.dispatchQty && item.dispatchQty && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Dispatch Qty:</span>
+                  <span className="font-medium">{item.dispatchQty}</span>
+                </div>
+              )}
+
+              {/* Vehicle Number Input in Expanded View */}
+              {columnVisibility.vehicleNumber && editingId === item.id && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500">Vehicle No:</span>
+                  <input
+                    type="text"
+                    value={
+                      editedVehicleNumbers[item.id] ||
+                      item.vehicleNumber
+                    }
+                    onChange={(e) =>
+                      setEditedVehicleNumbers({
+                        ...editedVehicleNumbers,
+                        [item.id]: e.target.value,
+                      })
+                    }
+                    className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Edit/Submit Button at Bottom of Expanded Card */}
+            {columnVisibility.editVehicleNumber && (
+              <div className="mt-4 pt-4 border-t border-gray-300">
+                {editingId === item.id ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSubmitVehicleNumber(item.id, item.serialNumber);
+                    }}
+                    className="w-full py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+                  >
+                    {changeVehicalNo ? "Submitting..." : "Submit Vehicle Number"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingId(item.id);
+                      setEditedVehicleNumbers({
+                        ...editedVehicleNumbers,
+                        [item.id]: item.vehicleNumber,
+                      });
+                    }}
+                    className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                  >
+                    Edit Vehicle Number
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">DO Generate</h1>
+    <div className="space-y-4 p-2 md:p-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-800">DO Generate</h1>
         <div className="flex items-center space-x-2">
           <button
             onClick={handleRefresh}
@@ -829,50 +773,50 @@ const DoGenerate = () => {
               size={16}
               className={`mr-2 ${loading ? "animate-spin" : ""}`}
             />
-            Refresh
+            <span className="hidden md:inline">Refresh</span>
           </button>
           <button
             onClick={() => {
               resetFormData();
               setShowModal(true);
             }}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+            className="inline-flex items-center px-3 py-2 md:px-4 md:py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
           >
             <Plus size={16} className="mr-2" />
-            Generate DO
+            <span className="hidden md:inline">Generate DO</span>
+            <span className="md:hidden">New DO</span>
           </button>
-          <button
-            onClick={() => {
-              resetFormData();
-              setShowModal(false);
-            }}
-            className="text-gray-500 hover:text-gray-700"
-          ></button>
         </div>
       </div>
 
-      {/* Filter and Search */}
-      <div className="bg-white p-4 rounded-lg shadow flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 md:space-x-4">
-        <div className="flex flex-1 max-w-md">
-          <div className="relative w-full">
-            <input
-              type="text"
-              placeholder="Search by party name or DO number..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search
-              size={20}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            />
-          </div>
-        </div>
+     {/* Filter and Search - Mobile Optimized */}
+<div className="bg-white p-3 md:p-4 rounded-lg shadow">
+  <div className="space-y-3 md:space-y-0 md:flex md:items-center md:justify-between">
+    {/* Search Bar */}
+    <div className="flex-1 max-w-full md:max-w-md">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search by party, DO number, vehicle..."
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <Search
+          size={18}
+          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+        />
+      </div>
+    </div>
 
-        <div className="flex items-center space-x-2">
-          <Filter size={16} className="text-gray-500" />
+    {/* Filters - Side by side on mobile */}
+    <div className="flex items-center space-x-2">
+      {/* Party Filter - Takes available space */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg">
+          <Filter size={16} className="text-gray-500 flex-shrink-0" />
           <select
-            className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="border-0 bg-transparent focus:outline-none focus:ring-0 text-sm w-full truncate"
             value={filterParty}
             onChange={(e) => setFilterParty(e.target.value)}
           >
@@ -883,40 +827,43 @@ const DoGenerate = () => {
               </option>
             ))}
           </select>
-
-          {/* Column visibility dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              <Eye size={16} className="mr-2" />
-              Columns
-            </button>
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
-                <div className="py-1">
-                  {columnOptions.map((column) => (
-                    <div key={column.id} className="px-4 py-2">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={columnVisibility[column.id]}
-                          onChange={() => toggleColumnVisibility(column.id)}
-                          className="rounded text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <span>{column.label}</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Table */}
+      {/* Column visibility dropdown - Fixed width */}
+      <div className="relative flex-shrink-0">
+        <button
+          onClick={() => setShowDropdown(!showDropdown)}
+          className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-12 sm:w-auto"
+        >
+          <Eye size={16} />
+          <span className="hidden sm:inline ml-1">Columns</span>
+        </button>
+        {showDropdown && (
+          <div className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 max-h-60 overflow-y-auto">
+            <div className="py-1">
+              {columnOptions.map((column) => (
+                <div key={column.id} className="px-3 py-2">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={columnVisibility[column.id]}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm">{column.label}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
+
+      {/* Table/Cards Container */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -925,164 +872,8 @@ const DoGenerate = () => {
           </div>
         ) : (
           <>
-            <div className="h-96 overflow-hidden">
-              <div className="overflow-x-auto overflow-y-auto h-full">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 sticky top-0 z-10">
-                    <tr>
-                      {columnVisibility.serialNumber && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Serial Number
-                        </th>
-                      )}
-                      {columnVisibility.partyName && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Party Name
-                        </th>
-                      )}
-                      {columnVisibility.erpDoNo && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ERP DO No.
-                        </th>
-                      )}
-                      {columnVisibility.transporterName && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Transporter Name
-                        </th>
-                      )}
-                      {columnVisibility.lrNumber && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          LR Number
-                        </th>
-                      )}
-                      {columnVisibility.vehicleNumber && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Vehicle Number
-                        </th>
-                      )}
-                      {columnVisibility.deliveryTerm && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Delivery Term
-                        </th>
-                      )}
-                      {columnVisibility.brandName && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Brand Name
-                        </th>
-                      )}
-                      {columnVisibility.dispatchQty && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Dispatch Qty
-                        </th>
-                      )}
-                      {columnVisibility.editVehicleNumber && (
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Edit Vehicle Number
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredData.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
-                        {columnVisibility.serialNumber && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.serialNumber}
-                          </td>
-                        )}
-                        {columnVisibility.partyName && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.partyName}
-                          </td>
-                        )}
-                        {columnVisibility.erpDoNo && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.erpDoNo}
-                          </td>
-                        )}
-                        {columnVisibility.transporterName && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.transporterName}
-                          </td>
-                        )}
-                        {columnVisibility.lrNumber && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.lrNumber}
-                          </td>
-                        )}
-                        {columnVisibility.vehicleNumber && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {editingId === item.id ? (
-                              <input
-                                type="text"
-                                value={
-                                  editedVehicleNumbers[item.id] ||
-                                  item.vehicleNumber
-                                }
-                                onChange={(e) =>
-                                  setEditedVehicleNumbers({
-                                    ...editedVehicleNumbers,
-                                    [item.id]: e.target.value,
-                                  })
-                                }
-                                className="border border-gray-300 rounded-md px-2 py-1 w-full"
-                              />
-                            ) : (
-                              item.vehicleNumber
-                            )}
-                          </td>
-                        )}
-                        {columnVisibility.deliveryTerm && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.deliveryTerm}
-                          </td>
-                        )}
-                        {columnVisibility.brandName && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.brandName}
-                          </td>
-                        )}
-                        {columnVisibility.dispatchQty && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.dispatchQty}
-                          </td>
-                        )}
-                        {columnVisibility.editVehicleNumber && (
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {editingId === item.id ? (
-                              <button
-                                onClick={() =>
-                                  handleSubmitVehicleNumber(
-                                    item.id,
-                                    item.serialNumber
-                                  )
-                                }
-                                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm"
-                              >
-                                {changeVehicalNo ? "Submiting..." : "Submit"}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setEditingId(item.id);
-                                  setEditedVehicleNumbers({
-                                    ...editedVehicleNumbers,
-                                    [item.id]: item.vehicleNumber,
-                                  });
-                                }}
-                                className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                              >
-                                Edit
-                              </button>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {isMobile ? renderCards() : renderTable()}
+            
             {filteredData.length === 0 && !loading && (
               <div className="px-6 py-12 text-center">
                 <p className="text-gray-500">No DO records found.</p>
@@ -1094,9 +885,9 @@ const DoGenerate = () => {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-4">
           <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b">
+            <div className="flex justify-between items-center p-4 md:p-6 border-b">
               <h3 className="text-lg font-medium">Generate DO</h3>
               <button
                 onClick={() => setShowModal(false)}
@@ -1105,58 +896,9 @@ const DoGenerate = () => {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Party Name */}
-                {/* <div className="relative" ref={partyDropdownRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Party Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="partyName"
-                    value={formData.partyName}
-                    onChange={handleInputChange}
-                    onFocus={() => setShowPartyDropdown(true)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Type to search or add party..."
-                    required
-                  />
-
-                  {showPartyDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {filteredPartyOptions.length > 0 ? (
-                        filteredPartyOptions.map((party, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handlePartySelect(party)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {party}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-gray-500">
-                          No parties found
-                        </div>
-                      )}
-
-                      {formData.partyName &&
-                        formData.partyName.trim() !== "" &&
-                        !partyNames.includes(formData.partyName.trim()) && (
-                          <div
-                            onClick={() =>
-                              addNewPartyToMaster(formData.partyName.trim())
-                            }
-                            className="px-3 py-2 hover:bg-blue-100 cursor-pointer text-blue-600 border-t border-gray-200"
-                          >
-                            + Add "{formData.partyName.trim()}" as new party
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div> */}
-
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Party Name *
@@ -1173,7 +915,7 @@ const DoGenerate = () => {
                     }}
                     filterOption={false}
                     notFoundContent={null}
-                    dropdownRender={(menu) => (
+                    popupRender={(menu) => (
                       <>
                         {menu}
                         {formData.partyName &&
@@ -1222,7 +964,7 @@ const DoGenerate = () => {
                       label: party,
                     }))}
                     disabled={isSubmitting}
-                    className="w-full party-select"
+                    className="w-full"
                     required
                   />
                 </div>
@@ -1236,64 +978,12 @@ const DoGenerate = () => {
                     name="erpDoNo"
                     value={formData.erpDoNo}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
                     required
                   />
                 </div>
 
                 {/* Transporter Name */}
-                {/* <div className="relative" ref={transporterDropdownRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transporter Name
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedTransporter}
-                    onChange={(e) => setSelectedTransporter(e.target.value)}
-                    onFocus={() => setShowTransporterDropdown(true)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Type to search or add transporter..."
-                  />
-
-                  {showTransporterDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {filteredTransporterOptions.length > 0 ? (
-                        filteredTransporterOptions.map((transporter, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleTransporterSelect(transporter)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {transporter}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-gray-500">
-                          No transporters found
-                        </div>
-                      )}
-
-                      {selectedTransporter &&
-                        selectedTransporter.trim() !== "" &&
-                        !transporterName.includes(
-                          selectedTransporter.trim()
-                        ) && (
-                          <div
-                            onClick={() =>
-                              addNewTransporterToMaster(
-                                selectedTransporter.trim()
-                              )
-                            }
-                            className="px-3 py-2 hover:bg-blue-100 cursor-pointer text-blue-600 border-t border-gray-200"
-                          >
-                            + Add "{selectedTransporter.trim()}" as new
-                            transporter
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div> */}
-
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Transporter Name
@@ -1306,7 +996,7 @@ const DoGenerate = () => {
                     onChange={(value) => setSelectedTransporter(value)}
                     filterOption={false}
                     notFoundContent={null}
-                    dropdownRender={(menu) => (
+                    popupRender={(menu) => (
                       <>
                         {menu}
                         {selectedTransporter &&
@@ -1358,7 +1048,7 @@ const DoGenerate = () => {
                       label: transporter,
                     }))}
                     disabled={isSubmitting}
-                    className="w-full transporter-select"
+                    className="w-full"
                   />
                 </div>
 
@@ -1371,7 +1061,7 @@ const DoGenerate = () => {
                     name="lrNumber"
                     value={formData.lrNumber}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
                   />
                 </div>
 
@@ -1384,7 +1074,7 @@ const DoGenerate = () => {
                     name="vehicleNumber"
                     value={formData.vehicleNumber}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
                     required
                   />
                 </div>
@@ -1403,7 +1093,7 @@ const DoGenerate = () => {
                         target: { name: "deliveryTerm", value },
                       })
                     }
-                    className="w-full h-[42px]"
+                    className="w-full"
                     optionFilterProp="children"
                     filterOption={(input, option) =>
                       option?.children
@@ -1421,55 +1111,6 @@ const DoGenerate = () => {
                 </div>
 
                 {/* Brand Name */}
-                {/* <div className="relative" ref={brandDropdownRef}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Brand Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="brandName"
-                    value={formData.brandName}
-                    onChange={handleInputChange}
-                    onFocus={() => setShowBrandDropdown(true)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Type to search or add brand..."
-                    required
-                  />
-
-                  {showBrandDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                      {filteredBrandOptions.length > 0 ? (
-                        filteredBrandOptions.map((brand, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleBrandSelect(brand)}
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
-                          >
-                            {brand}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="px-3 py-2 text-gray-500">
-                          No brands found
-                        </div>
-                      )}
-
-                      {formData.brandName &&
-                        formData.brandName.trim() !== "" &&
-                        !brandOptions.includes(formData.brandName.trim()) && (
-                          <div
-                            onClick={() =>
-                              addNewBrandToMaster(formData.brandName.trim())
-                            }
-                            className="px-3 py-2 hover:bg-blue-100 cursor-pointer text-blue-600 border-t border-gray-200"
-                          >
-                            + Add "{formData.brandName.trim()}" as new brand
-                          </div>
-                        )}
-                    </div>
-                  )}
-                </div> */}
-
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Brand Name *
@@ -1486,7 +1127,7 @@ const DoGenerate = () => {
                     }}
                     filterOption={false}
                     notFoundContent={null}
-                    dropdownRender={(menu) => (
+                    popupRender={(menu) => (
                       <>
                         {menu}
                         {formData.brandName &&
@@ -1535,7 +1176,7 @@ const DoGenerate = () => {
                       label: brand,
                     }))}
                     disabled={isSubmitting}
-                    className="w-full brand-select"
+                    className="w-full"
                     required
                   />
                 </div>
@@ -1549,7 +1190,7 @@ const DoGenerate = () => {
                     name="dispatchQty"
                     value={formData.dispatchQty}
                     onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
                     required
                   />
                 </div>
@@ -1559,14 +1200,14 @@ const DoGenerate = () => {
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 text-sm md:text-base"
                   disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center min-w-[100px] text-sm md:text-base"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (

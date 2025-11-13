@@ -1,9 +1,6 @@
-
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-const BACKEND_URL =
-  "https://script.google.com/macros/s/AKfycbytzkcDJnUk9tKgilwLMh8CSBFYjC_k_kS9wc4a_ylzqTDd2TQH5Z28tiTjWhn7wsfC/exec";
+import supabase from "../SupabaseClient";
 
 const useAuthStore = create(
   persist(
@@ -13,138 +10,49 @@ const useAuthStore = create(
       isLoading: false,
 
       login: async (username, password) => {
-        console.log("username",username);
-        console.log("password",password);
         set({ isLoading: true });
 
         try {
-          // First try JSONP (works with CORS)
-          return await get().loginWithJsonp(username, password);
-        } catch (error) {
-          console.error("JSONP login failed, trying POST:", error);
+          // Query Supabase master table
+          const { data, error } = await supabase
+            .from('master')
+            .select('user_id, user_name, password, role, page')
+            .eq('user_name', username)
+            .single();
 
-          // Fallback to POST if JSONP fails
-          try {
-            const response = await fetch(
-              `${BACKEND_URL}?action=login&username=${encodeURIComponent(
-                username
-              )}&password=${encodeURIComponent(password)}`,
-              {
-                method: "GET",
-                mode: "no-cors", // Important for CORS
-              }
-            );
-
-            // Handle response
-            const result = await response.json();
-
-            if (result.success && result.user) {
-              set({
-                isAuthenticated: true,
-                user: result.user,
-                isLoading: false,
-              });
-              return true;
-            } else {
-              throw new Error(result.error || "Login failed");
-            }
-          } catch (postError) {
-            set({ isLoading: false });
-            console.error("Login error:", postError);
-            return false;
+          if (error) {
+            console.error("Supabase error:", error);
+            throw new Error("User not found or database error");
           }
-        }
-      },
 
-      // JSONP fallback method for CORS issues
-      loginWithJsonp: async (username, password) => {
-        return new Promise((resolve) => {
-          const callbackName = `jsonp_callback_${Date.now()}`;
-          const script = document.createElement("script");
+          if (!data) {
+            throw new Error("Invalid username");
+          }
 
-          // Create global callback function
-          window[callbackName] = (result) => {
-            // Cleanup
-            document.head.removeChild(script);
-            delete window[callbackName];
+          // Check password (plain text comparison - consider hashing in production)
+          if (data.password !== password) {
+            throw new Error("Invalid password");
+          }
 
-            if (result.success && result.user) {
-              set({
-                isAuthenticated: true,
-                user: {
-                  id: result.user.id,
-                  username: result.user.username,
-                  name: result.user.name || result.user.username,
-                  role: result.user.role,
-                  page: result.user.page,
-                },
-                isLoading: false,
-              });
-              resolve(true);
-            } else {
-              set({ isLoading: false });
-              console.error(
-                "JSONP Login failed:",
-                result.error || "Unknown error"
-              );
-              resolve(false); // 🔴 FIX HERE: Make sure to resolve false if login fails
-            }
+          // Login successful
+          const user = {
+            id: data.user_id,
+            username: data.user_name,
+            name: data.user_name, // Using username as name since there's no separate name field
+            role: data.role,
+            page: data.page
           };
 
-          // Handle script error
-          script.onerror = () => {
-            document.head.removeChild(script);
-            delete window[callbackName];
-            set({ isLoading: false });
-            console.error("JSONP request failed");
-            resolve(false);
-          };
+          set({
+            isAuthenticated: true,
+            user: user,
+            isLoading: false,
+          });
 
-          // Set script source with JSONP callback
-          script.src = `${BACKEND_URL}?action=login&username=${encodeURIComponent(
-            username
-          )}&password=${encodeURIComponent(password)}&callback=${callbackName}`;
-          document.head.appendChild(script);
-        });
-      },
+          return true;
 
-      // Direct GET method (use only if CORS is properly configured)
-      loginDirect: async (username, password) => {
-        set({ isLoading: true });
-
-        try {
-          const response = await fetch(
-            `${BACKEND_URL}?action=login&username=${encodeURIComponent(
-              username
-            )}&password=${encodeURIComponent(password)}`,
-            {
-              method: "GET",
-              mode: "cors",
-            }
-          );
-
-          const result = await response.json();
-
-          if (result.success && result.user) {
-            set({
-              isAuthenticated: true,
-              user: {
-                id: result.user.id,
-                username: result.user.username,
-                name: result.user.name || result.user.username,
-                role: result.user.role,
-                page: result.user.page,
-              },
-              isLoading: false,
-            });
-            return true;
-          } else {
-            set({ isLoading: false });
-            console.error("Login failed:", result.error);
-            return false;
-          }
         } catch (error) {
-          console.error("Direct login error:", error);
+          console.error("Login error:", error);
           set({ isLoading: false });
           return false;
         }
