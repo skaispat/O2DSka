@@ -201,7 +201,7 @@ const MakeInvoice = () => {
     }
   };
 
-  // Filter brokers based on search
+  // Filter brokers based on search (case-insensitive)
   useEffect(() => {
     if (brokerSearch.trim() === "") {
       setFilteredBrokers(brokerNames);
@@ -832,24 +832,48 @@ const MakeInvoice = () => {
     }
   };
 
+  // Case-insensitive search for pending data
   const filteredPendingData = pendingData
     .filter((item) => {
-      const matchesSearch = item.partyName
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      const partyName = item?.partyName ? String(item.partyName).toLowerCase() : "";
+      const erpDoNo = item?.erpDoNo ? String(item.erpDoNo).toLowerCase() : "";
+      const vehicleNumber = item?.vehicleNumber ? String(item.vehicleNumber).toLowerCase() : "";
+      
+      const matchesSearch =
+        partyName.includes(searchTerm.toLowerCase()) ||
+        erpDoNo.includes(searchTerm.toLowerCase()) ||
+        vehicleNumber.includes(searchTerm.toLowerCase());
+      
       const matchesParty =
         filterParty === "all" || item.partyName === filterParty;
+      
       return matchesSearch && matchesParty;
     })
     .reverse();
 
+  // Case-insensitive search for history data
   const filteredHistory = filteredHistoryData
     .filter((item) => {
-      const matchesSearch = item.party_name
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+      const partyName = item?.party_name ? String(item.party_name).toLowerCase() : "";
+      const erpDoNo = item?.do_no ? String(item.do_no).toLowerCase() : "";
+      const vehicleNumber = item?.vehicle_no ? String(item.vehicle_no).toLowerCase() : "";
+      const invoiceNo = item?.invoice_no ? String(item.invoice_no).toLowerCase() : "";
+      const orderNumber = item?.order_number ? String(item.order_number).toLowerCase() : "";
+      const saudaNo = item?.sauda_no ? String(item.sauda_no).toLowerCase() : "";
+      const billNo = item?.bill_no ? String(item.bill_no).toLowerCase() : "";
+      
+      const matchesSearch =
+        partyName.includes(searchTerm.toLowerCase()) ||
+        erpDoNo.includes(searchTerm.toLowerCase()) ||
+        vehicleNumber.includes(searchTerm.toLowerCase()) ||
+        invoiceNo.includes(searchTerm.toLowerCase()) ||
+        orderNumber.includes(searchTerm.toLowerCase()) ||
+        saudaNo.includes(searchTerm.toLowerCase()) ||
+        billNo.includes(searchTerm.toLowerCase());
+      
       const matchesParty =
         filterParty === "all" || item.party_name === filterParty;
+      
       return matchesSearch && matchesParty;
     })
     .reverse();
@@ -876,7 +900,7 @@ const MakeInvoice = () => {
           <div className="relative w-full">
             <input
               type="text"
-              placeholder="Search by party name or DO number..."
+              placeholder="Search by party name, ERP DO no, vehicle no, invoice no, order no, sauda no, bill no..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

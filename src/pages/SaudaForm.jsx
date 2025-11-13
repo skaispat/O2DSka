@@ -371,7 +371,7 @@ const handleSubmit = async (e) => {
   }
 };
 
-  // Updated filtering logic to use correct column data
+  // Updated filtering logic to use correct column data with case-insensitive search
   const filteredPendingData = saudaData.filter(
     (item) => item.completed === "Pending"
   );
@@ -382,14 +382,31 @@ const handleSubmit = async (e) => {
   const currentTabData =
     activeTab === "pending" ? filteredPendingData : filteredHistoryData;
 
+  // Case-insensitive search for all fields
   const filteredData = currentTabData
     .filter((item) => {
+      const brokerName = String(item.brokerName || "").toLowerCase();
+      const partyName = String(item.partyName || "").toLowerCase();
+      const dealerName = String(item.dealerName || "").toLowerCase();
+      const saudaNumber = String(item.saudaNumber || "").toLowerCase();
+      const brandName = String(item.brandName || "").toLowerCase();
+      const contactPersonName = String(item.contactPersonName || "").toLowerCase();
+      const partyWhatsApp = String(item.partyWhatsApp || "").toLowerCase();
+      
+      const searchLower = searchTerm.toLowerCase();
+      
       const matchesSearch =
-        item.brokerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.partyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.dealerName?.toLowerCase().includes(searchTerm.toLowerCase());
+        brokerName.includes(searchLower) ||
+        partyName.includes(searchLower) ||
+        dealerName.includes(searchLower) ||
+        saudaNumber.includes(searchLower) ||
+        brandName.includes(searchLower) ||
+        contactPersonName.includes(searchLower) ||
+        partyWhatsApp.includes(searchLower);
+      
       const matchesDealer =
         filterDealer === "all" || item.dealerName === filterDealer;
+      
       return matchesSearch && matchesDealer;
     })
     .reverse();
@@ -861,7 +878,7 @@ const handleSubmit = async (e) => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search by broker, party or dealer..."
+                placeholder="Search by broker, party, dealer, sauda no, brand, contact person, WhatsApp..."
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -1151,7 +1168,9 @@ const handleSubmit = async (e) => {
                     onChange={(value) => {
                       setFormData(prev => ({ ...prev, partyName: value }));
                     }}
-                    filterOption={false}
+                    filterOption={(input, option) =>
+                      option?.label.toLowerCase().includes(input.toLowerCase())
+                    }
                     notFoundContent={null}
                     dropdownRender={(menu) => (
                       <>
@@ -1221,7 +1240,9 @@ const handleSubmit = async (e) => {
                     onChange={(value) => {
                       setFormData(prev => ({ ...prev, brandName: value }));
                     }}
-                    filterOption={false}
+                    filterOption={(input, option) =>
+                      option?.label.toLowerCase().includes(input.toLowerCase())
+                    }
                     notFoundContent={null}
                     dropdownRender={(menu) => (
                       <>

@@ -393,23 +393,32 @@ const DoGenerate = () => {
   }
 };
 
+  // Case-insensitive search for all fields
   const filteredData = doData.filter((item) => {
-    const partyName = String(item.partyName || "");
-    const serialNumber = String(item.serialNumber || "");
-    const erpDoNo = String(item.erpDoNo || "");
-    const transporterName = String(item.transporterName || "");
-    const vehicleNumber = String(item.vehicleNumber || "");
-    const lrNumber = String(item.lrNumber || "");
+    const partyName = String(item.partyName || "").toLowerCase();
+    const serialNumber = String(item.serialNumber || "").toLowerCase();
+    const erpDoNo = String(item.erpDoNo || "").toLowerCase();
+    const transporterName = String(item.transporterName || "").toLowerCase();
+    const vehicleNumber = String(item.vehicleNumber || "").toLowerCase();
+    const lrNumber = String(item.lrNumber || "").toLowerCase();
+    const deliveryTerm = String(item.deliveryTerm || "").toLowerCase();
+    const brandName = String(item.brandName || "").toLowerCase();
+    const dispatchQty = String(item.dispatchQty || "").toLowerCase();
+    
+    const searchLower = searchTerm.toLowerCase();
     
     const matchesSearch = 
-      partyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      serialNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      erpDoNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transporterName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lrNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      partyName.includes(searchLower) ||
+      serialNumber.includes(searchLower) ||
+      erpDoNo.includes(searchLower) ||
+      transporterName.includes(searchLower) ||
+      vehicleNumber.includes(searchLower) ||
+      lrNumber.includes(searchLower) ||
+      deliveryTerm.includes(searchLower) ||
+      brandName.includes(searchLower) ||
+      dispatchQty.includes(searchLower);
 
-    const matchesParty = filterParty === "all" || partyName === filterParty;
+    const matchesParty = filterParty === "all" || item.partyName === filterParty;
 
     return matchesSearch && matchesParty;
   });
@@ -797,7 +806,7 @@ const renderCards = () => (
       <div className="relative">
         <input
           type="text"
-          placeholder="Search by party, DO number, vehicle..."
+          placeholder="Search by party, DO number, vehicle, transporter, LR number, delivery term, brand, dispatch qty..."
           className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -913,7 +922,9 @@ const renderCards = () => (
                     onChange={(value) => {
                       setFormData((prev) => ({ ...prev, partyName: value }));
                     }}
-                    filterOption={false}
+                    filterOption={(input, option) =>
+                      option?.label.toLowerCase().includes(input.toLowerCase())
+                    }
                     notFoundContent={null}
                     popupRender={(menu) => (
                       <>
@@ -994,7 +1005,9 @@ const renderCards = () => (
                     value={selectedTransporter || undefined}
                     onSearch={(value) => setSelectedTransporter(value)}
                     onChange={(value) => setSelectedTransporter(value)}
-                    filterOption={false}
+                    filterOption={(input, option) =>
+                      option?.label.toLowerCase().includes(input.toLowerCase())
+                    }
                     notFoundContent={null}
                     popupRender={(menu) => (
                       <>
@@ -1125,7 +1138,9 @@ const renderCards = () => (
                     onChange={(value) => {
                       setFormData((prev) => ({ ...prev, brandName: value }));
                     }}
-                    filterOption={false}
+                    filterOption={(input, option) =>
+                      option?.label.toLowerCase().includes(input.toLowerCase())
+                    }
                     notFoundContent={null}
                     popupRender={(menu) => (
                       <>
