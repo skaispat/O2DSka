@@ -487,65 +487,65 @@ const handleSubmit = async (e) => {
     setExpandedCard(expandedCard === id ? null : id);
   };
 
-  // Render table for desktop view
+  // Render table for desktop view with fixed height and scroll
   const renderTable = () => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
       <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 sticky top-0 z-10">
           <tr>
             {columnVisibility[activeTab].saudaNumber && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Sauda No.
               </th>
             )}
             {columnVisibility[activeTab].dateOfSauda && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Date Of Sauda
               </th>
             )}
             {columnVisibility[activeTab].brokerName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Broker Name
               </th>
             )}
             {columnVisibility[activeTab].partyName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Party Name
               </th>
             )}
             {columnVisibility[activeTab].dealerName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Dealer Name
               </th>
             )}
             {columnVisibility[activeTab].rate && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Rate
               </th>
             )}
             {columnVisibility[activeTab].orderQuantity && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Order Qty (Ton)
               </th>
             )}
             {columnVisibility[activeTab].partyWhatsApp && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 WhatsApp
               </th>
             )}
             {columnVisibility[activeTab].contactPersonName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Contact Person
               </th>
             )}
             {columnVisibility[activeTab].status && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Pending Qty
               </th>
             )}
             {activeTab === "pending" &&
               columnVisibility[activeTab].action && (
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                   Action
                 </th>
               )}
@@ -640,7 +640,7 @@ const handleSubmit = async (e) => {
 
   // Render cards for mobile view - FIXED VERSION
   const renderCards = () => (
-    <div className="space-y-3 p-3">
+    <div className="space-y-3 p-3" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
       {filteredData.map((item) => (
         <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
           {/* Card Header - Always Visible */}
@@ -839,7 +839,7 @@ const handleSubmit = async (e) => {
   );
 
   return (
-    <div className="space-y-4 p-2 md:p-6">
+    <div className="space-y-4 p-2 md:p-6" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <h1 className="text-xl md:text-2xl font-bold text-gray-800">SaudaForm</h1>
@@ -890,10 +890,11 @@ const handleSubmit = async (e) => {
             </div>
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-            <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg">
-              <Filter size={16} className="text-gray-500" />
+          {/* Filters - UPDATED: Filter and Column buttons side by side on mobile */}
+          <div className="flex items-center space-x-2">
+            {/* Filter Button */}
+            <div className="flex items-center bg-gray-50 p-2 rounded-lg border border-gray-300 flex-1 min-w-0">
+              <Filter size={16} className="text-gray-500 mr-2 flex-shrink-0" />
               <select
                 className="border-0 bg-transparent focus:outline-none focus:ring-0 text-sm w-full"
                 value={filterDealer}
@@ -912,10 +913,11 @@ const handleSubmit = async (e) => {
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto"
+                className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-full sm:w-auto min-w-[80px]"
               >
-                <Eye size={16} className="mr-2" />
+                <Eye size={16} className="mr-1 md:mr-2" />
                 <span className="hidden sm:inline">Columns</span>
+                <span className="sm:hidden">Cols</span>
               </button>
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 max-h-60 overflow-y-auto">
@@ -943,8 +945,8 @@ const handleSubmit = async (e) => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Tabs and Table Container - Fixed height with internal scroll */}
+      <div className="bg-white rounded-lg shadow overflow-hidden flex-1 flex flex-col">
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
@@ -972,15 +974,15 @@ const handleSubmit = async (e) => {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-8 flex-1">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             <span className="text-gray-600 ml-2">Loading data...</span>
           </div>
         )}
 
-        {/* Content */}
+        {/* Content - This container will scroll internally */}
         {!isLoading && (
-          <>
+          <div className="flex-1">
             {isMobile ? renderCards() : renderTable()}
             
             {filteredData.length === 0 && (
@@ -988,7 +990,7 @@ const handleSubmit = async (e) => {
                 <p className="text-gray-500">No sauda records found.</p>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 

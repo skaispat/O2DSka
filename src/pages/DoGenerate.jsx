@@ -429,59 +429,59 @@ const DoGenerate = () => {
     setExpandedCard(expandedCard === id ? null : id);
   };
 
-  // Render table for desktop view
+  // Render table for desktop view with fixed header and scroll
   const renderTable = () => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
       <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 sticky top-0 z-10">
           <tr>
             {columnVisibility.serialNumber && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Serial Number
               </th>
             )}
             {columnVisibility.partyName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Party Name
               </th>
             )}
             {columnVisibility.erpDoNo && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 ERP DO No.
               </th>
             )}
             {columnVisibility.transporterName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Transporter Name
               </th>
             )}
             {columnVisibility.lrNumber && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 LR Number
               </th>
             )}
             {columnVisibility.vehicleNumber && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Vehicle Number
               </th>
             )}
             {columnVisibility.deliveryTerm && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Delivery Term
               </th>
             )}
             {columnVisibility.brandName && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Brand Name
               </th>
             )}
             {columnVisibility.dispatchQty && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Dispatch Qty
               </th>
             )}
             {columnVisibility.editVehicleNumber && (
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                 Edit Vehicle Number
               </th>
             )}
@@ -589,187 +589,187 @@ const DoGenerate = () => {
     </div>
   );
 
- // Render cards for mobile view
-const renderCards = () => (
-  <div className="space-y-3 p-3">
-    {filteredData.map((item) => (
-      <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-        <div 
-          className="p-4 cursor-pointer"
-          onClick={() => toggleCardExpand(item.id)}
-        >
-          {/* Header with Serial Number and Expand Button */}
-          <div className="flex justify-between items-start mb-3">
-            <div className="flex items-center space-x-2">
-              {columnVisibility.serialNumber && (
-                <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                  {item.serialNumber}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleCardExpand(item.id);
-              }}
-              className="text-gray-400 hover:text-gray-600 p-1"
-            >
-              {expandedCard === item.id ? (
-                <ChevronUp size={18} />
-              ) : (
-                <ChevronDown size={18} />
-              )}
-            </button>
-          </div>
-
-          {/* Essential Info */}
-          <div className="space-y-2">
-            {columnVisibility.partyName && item.partyName && (
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-sm">Party:</span>
-                <span className="font-medium text-sm">{item.partyName}</span>
+  // Render cards for mobile view with scroll
+  const renderCards = () => (
+    <div className="space-y-3 p-3" style={{ maxHeight: 'calc(100vh - 300px)', overflowY: 'auto' }}>
+      {filteredData.map((item) => (
+        <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+          <div 
+            className="p-4 cursor-pointer"
+            onClick={() => toggleCardExpand(item.id)}
+          >
+            {/* Header with Serial Number and Expand Button */}
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center space-x-2">
+                {columnVisibility.serialNumber && (
+                  <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                    {item.serialNumber}
+                  </span>
+                )}
               </div>
-            )}
-            
-            {columnVisibility.erpDoNo && item.erpDoNo && (
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-sm">ERP DO No:</span>
-                <span className="font-medium text-sm">{item.erpDoNo}</span>
-              </div>
-            )}
-
-            {columnVisibility.vehicleNumber && (
-              <div className="flex justify-between">
-                <span className="text-gray-500 text-sm">Vehicle No:</span>
-                <span className="font-medium text-sm">
-                  {item.vehicleNumber}
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Edit Button for Mobile - Only show when NOT editing and card is collapsed */}
-          {columnVisibility.editVehicleNumber && !editingId && expandedCard !== item.id && (
-            <div className="mt-3 pt-2 border-t border-gray-200">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEditingId(item.id);
-                  setEditedVehicleNumbers({
-                    ...editedVehicleNumbers,
-                    [item.id]: item.vehicleNumber,
-                  });
+                  toggleCardExpand(item.id);
                 }}
-                className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                className="text-gray-400 hover:text-gray-600 p-1"
               >
-                Edit Vehicle Number
+                {expandedCard === item.id ? (
+                  <ChevronUp size={18} />
+                ) : (
+                  <ChevronDown size={18} />
+                )}
               </button>
             </div>
-          )}
-        </div>
 
-        {/* Expanded Details */}
-        {expandedCard === item.id && (
-          <div className="border-t border-gray-200 p-4 bg-gray-50">
-            <div className="space-y-2 text-sm">
-              {columnVisibility.transporterName && item.transporterName && (
+            {/* Essential Info */}
+            <div className="space-y-2">
+              {columnVisibility.partyName && item.partyName && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Transporter:</span>
-                  <span className="font-medium">{item.transporterName}</span>
+                  <span className="text-gray-500 text-sm">Party:</span>
+                  <span className="font-medium text-sm">{item.partyName}</span>
                 </div>
               )}
               
-              {columnVisibility.lrNumber && item.lrNumber && (
+              {columnVisibility.erpDoNo && item.erpDoNo && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500">LR Number:</span>
-                  <span className="font-medium">{item.lrNumber}</span>
-                </div>
-              )}
-              
-              {columnVisibility.deliveryTerm && item.deliveryTerm && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Delivery Term:</span>
-                  <span className="font-medium">{item.deliveryTerm}</span>
-                </div>
-              )}
-              
-              {columnVisibility.brandName && item.brandName && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Brand:</span>
-                  <span className="font-medium">{item.brandName}</span>
-                </div>
-              )}
-              
-              {columnVisibility.dispatchQty && item.dispatchQty && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Dispatch Qty:</span>
-                  <span className="font-medium">{item.dispatchQty}</span>
+                  <span className="text-gray-500 text-sm">ERP DO No:</span>
+                  <span className="font-medium text-sm">{item.erpDoNo}</span>
                 </div>
               )}
 
-              {/* Vehicle Number Input in Expanded View */}
-              {columnVisibility.vehicleNumber && editingId === item.id && (
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500">Vehicle No:</span>
-                  <input
-                    type="text"
-                    value={
-                      editedVehicleNumbers[item.id] ||
-                      item.vehicleNumber
-                    }
-                    onChange={(e) =>
-                      setEditedVehicleNumbers({
-                        ...editedVehicleNumbers,
-                        [item.id]: e.target.value,
-                      })
-                    }
-                    className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
-                    onClick={(e) => e.stopPropagation()}
-                  />
+              {columnVisibility.vehicleNumber && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500 text-sm">Vehicle No:</span>
+                  <span className="font-medium text-sm">
+                    {item.vehicleNumber}
+                  </span>
                 </div>
               )}
             </div>
 
-            {/* Edit/Submit Button at Bottom of Expanded Card */}
-            {columnVisibility.editVehicleNumber && (
-              <div className="mt-4 pt-4 border-t border-gray-300">
-                {editingId === item.id ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSubmitVehicleNumber(item.id, item.serialNumber);
-                    }}
-                    className="w-full py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
-                  >
-                    {changeVehicalNo ? "Submitting..." : "Submit Vehicle Number"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingId(item.id);
-                      setEditedVehicleNumbers({
-                        ...editedVehicleNumbers,
-                        [item.id]: item.vehicleNumber,
-                      });
-                    }}
-                    className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
-                  >
-                    Edit Vehicle Number
-                  </button>
-                )}
+            {/* Edit Button for Mobile - Only show when NOT editing and card is collapsed */}
+            {columnVisibility.editVehicleNumber && !editingId && expandedCard !== item.id && (
+              <div className="mt-3 pt-2 border-t border-gray-200">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingId(item.id);
+                    setEditedVehicleNumbers({
+                      ...editedVehicleNumbers,
+                      [item.id]: item.vehicleNumber,
+                    });
+                  }}
+                  className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                >
+                  Edit Vehicle Number
+                </button>
               </div>
             )}
           </div>
-        )}
-      </div>
-    ))}
-  </div>
-);
+
+          {/* Expanded Details */}
+          {expandedCard === item.id && (
+            <div className="border-t border-gray-200 p-4 bg-gray-50">
+              <div className="space-y-2 text-sm">
+                {columnVisibility.transporterName && item.transporterName && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Transporter:</span>
+                    <span className="font-medium">{item.transporterName}</span>
+                  </div>
+                )}
+                
+                {columnVisibility.lrNumber && item.lrNumber && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">LR Number:</span>
+                    <span className="font-medium">{item.lrNumber}</span>
+                  </div>
+                )}
+                
+                {columnVisibility.deliveryTerm && item.deliveryTerm && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Delivery Term:</span>
+                    <span className="font-medium">{item.deliveryTerm}</span>
+                  </div>
+                )}
+                
+                {columnVisibility.brandName && item.brandName && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Brand:</span>
+                    <span className="font-medium">{item.brandName}</span>
+                  </div>
+                )}
+                
+                {columnVisibility.dispatchQty && item.dispatchQty && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Dispatch Qty:</span>
+                    <span className="font-medium">{item.dispatchQty}</span>
+                  </div>
+                )}
+
+                {/* Vehicle Number Input in Expanded View */}
+                {columnVisibility.vehicleNumber && editingId === item.id && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500">Vehicle No:</span>
+                    <input
+                      type="text"
+                      value={
+                        editedVehicleNumbers[item.id] ||
+                        item.vehicleNumber
+                      }
+                      onChange={(e) =>
+                        setEditedVehicleNumbers({
+                          ...editedVehicleNumbers,
+                          [item.id]: e.target.value,
+                        })
+                      }
+                      className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Edit/Submit Button at Bottom of Expanded Card */}
+              {columnVisibility.editVehicleNumber && (
+                <div className="mt-4 pt-4 border-t border-gray-300">
+                  {editingId === item.id ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSubmitVehicleNumber(item.id, item.serialNumber);
+                      }}
+                      className="w-full py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+                    >
+                      {changeVehicalNo ? "Submitting..." : "Submit Vehicle Number"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingId(item.id);
+                        setEditedVehicleNumbers({
+                          ...editedVehicleNumbers,
+                          [item.id]: item.vehicleNumber,
+                        });
+                      }}
+                      className="w-full py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
+                    >
+                      Edit Vehicle Number
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   return (
-    <div className="space-y-4 p-2 md:p-6">
-      {/* Header */}
+    <div className="space-y-4 p-2 md:p-6" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header - Fixed at top */}
       <div className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
         <h1 className="text-xl md:text-2xl font-bold text-gray-800">DO Generate</h1>
         <div className="flex items-center space-x-2">
@@ -798,90 +798,92 @@ const renderCards = () => (
         </div>
       </div>
 
-     {/* Filter and Search - Mobile Optimized */}
-<div className="bg-white p-3 md:p-4 rounded-lg shadow">
-  <div className="space-y-3 md:space-y-0 md:flex md:items-center md:justify-between">
-    {/* Search Bar */}
-    <div className="flex-1 max-w-full md:max-w-md">
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="Search by party, DO number, vehicle, transporter, LR number, delivery term, brand, dispatch qty..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <Search
-          size={18}
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-        />
-      </div>
-    </div>
+      {/* Filter and Search - Mobile Optimized */}
+      <div className="bg-white p-3 md:p-4 rounded-lg shadow">
+        <div className="space-y-3 md:space-y-0 md:flex md:items-center md:justify-between">
+          {/* Search Bar */}
+          <div className="flex-1 max-w-full md:max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by party, DO number, vehicle, transporter, LR number, delivery term, brand, dispatch qty..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm md:text-base"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              />
+            </div>
+          </div>
 
-    {/* Filters - Side by side on mobile */}
-    <div className="flex items-center space-x-2">
-      {/* Party Filter - Takes available space */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg">
-          <Filter size={16} className="text-gray-500 flex-shrink-0" />
-          <select
-            className="border-0 bg-transparent focus:outline-none focus:ring-0 text-sm w-full truncate"
-            value={filterParty}
-            onChange={(e) => setFilterParty(e.target.value)}
-          >
-            <option value="all">All Parties</option>
-            {uniqueParties.map((party) => (
-              <option key={party} value={party}>
-                {party}
-              </option>
-            ))}
-          </select>
+          {/* Filters - Side by side on mobile */}
+          <div className="flex items-center space-x-2">
+            {/* Party Filter - Takes available space */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border border-gray-300">
+                <Filter size={16} className="text-gray-500 flex-shrink-0" />
+                <select
+                  className="border-0 bg-transparent focus:outline-none focus:ring-0 text-sm w-full truncate"
+                  value={filterParty}
+                  onChange={(e) => setFilterParty(e.target.value)}
+                >
+                  <option value="all">All Parties</option>
+                  {uniqueParties.map((party) => (
+                    <option key={party} value={party}>
+                      {party}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Column visibility dropdown - Fixed width */}
+            <div className="relative flex-shrink-0" ref={dropdownRef}>
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-12 sm:w-auto"
+              >
+                <Eye size={16} />
+                <span className="hidden sm:inline ml-1">Columns</span>
+              </button>
+              {showDropdown && (
+                <div className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 max-h-60 overflow-y-auto">
+                  <div className="py-1">
+                    {columnOptions.map((column) => (
+                      <div key={column.id} className="px-3 py-2">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={columnVisibility[column.id]}
+                            onChange={() => toggleColumnVisibility(column.id)}
+                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-sm">{column.label}</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Column visibility dropdown - Fixed width */}
-      <div className="relative flex-shrink-0">
-        <button
-          onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center justify-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 w-12 sm:w-auto"
-        >
-          <Eye size={16} />
-          <span className="hidden sm:inline ml-1">Columns</span>
-        </button>
-        {showDropdown && (
-          <div className="absolute right-0 mt-2 w-56 origin-top-right bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 max-h-60 overflow-y-auto">
-            <div className="py-1">
-              {columnOptions.map((column) => (
-                <div key={column.id} className="px-3 py-2">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={columnVisibility[column.id]}
-                      onChange={() => toggleColumnVisibility(column.id)}
-                      className="rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm">{column.label}</span>
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-</div>
-
-      {/* Table/Cards Container */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Table/Cards Container - Fixed height with internal scroll */}
+      <div className="bg-white rounded-lg shadow overflow-hidden flex-1 flex flex-col">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-8 flex-1">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             <span className="text-gray-600 ml-2">Loading data...</span>
           </div>
         ) : (
           <>
-            {isMobile ? renderCards() : renderTable()}
+            <div className="flex-1">
+              {isMobile ? renderCards() : renderTable()}
+            </div>
             
             {filteredData.length === 0 && !loading && (
               <div className="px-6 py-12 text-center">
